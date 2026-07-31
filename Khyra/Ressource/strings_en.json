@@ -1,0 +1,39 @@
+{
+    "welcomeTitle": "Welcome to Khyra",
+    "welcomeSubtitle":
+        "Create projects, open saved work, or start a quick playground.",
+    "newProject": "New Project",
+    "openProject": "Open Project",
+    "playground": "Playground",
+    "templates": "Templates",
+    "home": "Home",
+    "editor": "Editor",
+    "preview": "Preview",
+    "docs": "Docs",
+    "settings": "Settings",
+    "appearance": "Appearance",
+    "theme": "Theme",
+    "language": "Language",
+    "german": "German",
+    "english": "English",
+    "about": "About",
+    "appInfo": "App Info",
+    "version": "Version",
+    "build": "Build",
+    "capabilities": "Capabilities",
+    "infoTitle": "What Khyra can do",
+    "infoDescription":
+        "Khyra is a native mobile code workspace for writing, organizing, checking and previewing small projects directly on iPhone.",
+    "infoEditor":
+        "Editor with syntax highlighting, suggestions, snippets, auto pairs, formatting and lint terminal.",
+    "infoProjects":
+        "Project manager for files, folders, rename, delete, save and export.",
+    "infoPreview":
+        "Web preview renders HTML, CSS and JavaScript together with WebKit.",
+    "infoDocs":
+        "Documentation with examples, explanations, copy and share actions.",
+    "infoPlayground":
+        "Playground is for quick code experiments with editor and terminal.",
+    "infoNative":
+        "Built with native Apple frameworks like SwiftUI, UIKit and WebKit."
+}

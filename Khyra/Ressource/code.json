@@ -1,0 +1,813 @@
+{
+    "languages":
+        [
+            {
+                "id": "html",
+                "name": "HTML",
+                "fileExtension": "index.html",
+                "keywords": [
+                    "DOCTYPE",
+                    "html",
+                    "head",
+                    "body",
+                    "meta",
+                    "title",
+                    "link",
+                    "script",
+                    "style",
+                    "main",
+                    "section",
+                    "article",
+                    "header",
+                    "footer",
+                    "nav",
+                    "div",
+                    "span",
+                    "h1",
+                    "h2",
+                    "h3",
+                    "p",
+                    "a",
+                    "input",
+                    "form",
+                    "img",
+                    "ul",
+                    "li",
+                    "class",
+                    "id",
+                    "href",
+                    "src",
+                    "alt"
+                ],
+                "sampleCode": "",
+                "boilerplateCode":
+                    "<!DOCTYPE html>\n<html lang=\"de\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>Khyra</title>\n</head>\n<body>\n  <main class=\"app\">\n    <h1>Hello Khyra</h1>\n  </main>\n</body>\n</html>",
+                "snippets": [
+                    {
+                        "trigger": "html",
+                        "title": "HTML Document",
+                        "insertText":
+                            "<!DOCTYPE html>\n<html lang=\"de\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>Khyra</title>\n</head>\n<body>\n  <main class=\"app\">\n    <h1>Hello Khyra</h1>\n  </main>\n</body>\n</html>"
+                    },
+                    {
+                        "trigger": "main",
+                        "title": "main.app",
+                        "insertText":
+                            "<main class=\"app\">\n  <h1>Hello Khyra</h1>\n</main>"
+                    },
+                    {
+                        "trigger": "form",
+                        "title": "form",
+                        "insertText":
+                            "<form>\n  <label for=\"email\">Email</label>\n  <input id=\"email\" type=\"email\">\n</form>"
+                    },
+                    {
+                        "trigger": "section",
+                        "title": "section",
+                        "insertText":
+                            "<section>\n  <h2>Title</h2>\n  <p>Text</p>\n</section>"
+                    },
+                    {
+                        "trigger": "react",
+                        "title": "React CDN App",
+                        "insertText":
+                            "<!DOCTYPE html>\n<html lang=\"de\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>React App</title>\n  <script crossorigin src=\"https://unpkg.com/react@18/umd/react.development.js\"></script>\n  <script crossorigin src=\"https://unpkg.com/react-dom@18/umd/react-dom.development.js\"></script>\n  <script src=\"https://unpkg.com/@babel/standalone/babel.min.js\"></script>\n</head>\n<body>\n  <div id=\"root\"></div>\n  <script type=\"text/babel\">\n    function App() {\n      return <main className=\"app\"><h1>Hello React</h1></main>;\n    }\n\n    ReactDOM.createRoot(document.getElementById('root')).render(<App />);\n  </script>\n</body>\n</html>"
+                    },
+                    {
+                        "trigger": "vue",
+                        "title": "Vue CDN App",
+                        "insertText":
+                            "<!DOCTYPE html>\n<html lang=\"de\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>Vue App</title>\n  <script src=\"https://unpkg.com/vue@3/dist/vue.global.js\"></script>\n</head>\n<body>\n  <div id=\"app\">{{ message }}</div>\n  <script>\n    Vue.createApp({\n      data() {\n        return { message: 'Hello Vue' };\n      }\n    }).mount('#app');\n  </script>\n</body>\n</html>"
+                    },
+                    {
+                        "trigger": "tailwind",
+                        "title": "Tailwind CDN Page",
+                        "insertText":
+                            "<!DOCTYPE html>\n<html lang=\"de\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>Tailwind Page</title>\n  <script src=\"https://cdn.tailwindcss.com\"></script>\n</head>\n<body class=\"min-h-screen bg-black text-green-400 grid place-items-center\">\n  <main class=\"p-6 rounded-lg border border-green-500\">\n    <h1 class=\"text-3xl font-bold\">Hello Tailwind</h1>\n  </main>\n</body>\n</html>"
+                    },
+                    {
+                        "trigger": "pwa",
+                        "title": "PWA Shell",
+                        "insertText":
+                            "<!DOCTYPE html>\n<html lang=\"de\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <meta name=\"theme-color\" content=\"#19f26b\">\n  <link rel=\"manifest\" href=\"manifest.json\">\n  <title>PWA</title>\n</head>\n<body>\n  <main class=\"app\">\n    <h1>Installable App</h1>\n  </main>\n</body>\n</html>"
+                    }
+                ],
+                "frameworks": [
+                    {
+                        "id": "react-cdn",
+                        "name": "React CDN",
+                        "runtime": "WebKit + CDN",
+                        "previewSupported": true,
+                        "detectionPatterns": [
+                            "ReactDOM.createRoot",
+                            "text/babel",
+                            "react@18"
+                        ],
+                        "boilerplateCode":
+                            "<!DOCTYPE html>\n<html lang=\"de\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>React App</title>\n  <script crossorigin src=\"https://unpkg.com/react@18/umd/react.development.js\"></script>\n  <script crossorigin src=\"https://unpkg.com/react-dom@18/umd/react-dom.development.js\"></script>\n  <script src=\"https://unpkg.com/@babel/standalone/babel.min.js\"></script>\n</head>\n<body>\n  <div id=\"root\"></div>\n  <script type=\"text/babel\">\n    function App() {\n      return <main className=\"app\"><h1>Hello React</h1></main>;\n    }\n\n    ReactDOM.createRoot(document.getElementById('root')).render(<App />);\n  </script>\n</body>\n</html>",
+                        "notes":
+                            "Works in preview when network/CDN loading is available."
+                    },
+                    {
+                        "id": "vue-cdn",
+                        "name": "Vue CDN",
+                        "runtime": "WebKit + CDN",
+                        "previewSupported": true,
+                        "detectionPatterns": [
+                            "Vue.createApp",
+                            "vue.global.js"
+                        ],
+                        "boilerplateCode": "<!DOCTYPE html>\n<html lang=\"de\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>Vue App</title>\n  <script src=\"https://unpkg.com/vue@3/dist/vue.global.js\"></script>\n</head>\n<body>\n  <div id=\"app\">{{ message }}</div>\n  <script>\n    Vue.createApp({\n      data() {\n        return { message: 'Hello Vue' };\n      }\n    }).mount('#app');\n  </script>\n</body>\n</html>",
+                        "notes":
+                            "Single-file CDN setup for quick mobile preview."
+                    },
+                    {
+                        "id": "tailwind-cdn",
+                        "name": "Tailwind CDN",
+                        "runtime": "WebKit + CDN",
+                        "previewSupported": true,
+                        "detectionPatterns": [
+                            "cdn.tailwindcss.com",
+                            "class=\""
+                        ],
+                        "boilerplateCode":
+                            "<!DOCTYPE html>\n<html lang=\"de\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title>Tailwind Page</title>\n  <script src=\"https://cdn.tailwindcss.com\"></script>\n</head>\n<body class=\"min-h-screen bg-black text-green-400 grid place-items-center\">\n  <main class=\"p-6 rounded-lg border border-green-500\">\n    <h1 class=\"text-3xl font-bold\">Hello Tailwind</h1>\n  </main>\n</body>\n</html>",
+                        "notes": "Good for rapid UI experiments."
+                    }
+                ],
+                "referenceSections": [
+                    {
+                        "title": "Document",
+                        "body": "Grundstruktur einer HTML-Seite.",
+                        "code":
+                            "<!DOCTYPE html>\n<html lang=\"de\">\n<head>\n  <meta charset=\"UTF-8\">\n  <title>Titel</title>\n</head>\n<body>\n  <main>Inhalt</main>\n</body>\n</html>"
+                    },
+                    {
+                        "title": "Link",
+                        "body": "Verlinkt eine andere Seite oder Datei.",
+                        "code": "<a href=\"https://example.com\">Link</a>"
+                    }
+                ]
+            },
+            {
+                "id": "css",
+                "name": "CSS",
+                "fileExtension": "style.css",
+                "keywords": [
+                    "body",
+                    "main",
+                    "section",
+                    "display",
+                    "grid",
+                    "flex",
+                    "color",
+                    "background",
+                    "border",
+                    "padding",
+                    "margin",
+                    "font",
+                    "width",
+                    "height",
+                    "min-height",
+                    "gap",
+                    "align-items",
+                    "justify-content",
+                    "position",
+                    "absolute",
+                    "relative",
+                    "fixed",
+                    "class",
+                    "id"
+                ],
+                "sampleCode": "",
+                "boilerplateCode":
+                    ":root {\n  color: #19f26b;\n  background: #050706;\n}\n\nbody {\n  margin: 0;\n  min-height: 100vh;\n  font-family: system-ui, sans-serif;\n  background: #050706;\n  color: #19f26b;\n}\n\n.app {\n  display: grid;\n  gap: 16px;\n  padding: 24px;\n}",
+                "snippets": [
+                    {
+                        "trigger": "body",
+                        "title": "body",
+                        "insertText":
+                            "body {\n  margin: 0;\n  min-height: 100vh;\n}"
+                    },
+                    {
+                        "trigger": "grid",
+                        "title": "display grid",
+                        "insertText": "display: grid;\ngap: 16px;"
+                    },
+                    {
+                        "trigger": "flex",
+                        "title": "display flex",
+                        "insertText":
+                            "display: flex;\nalign-items: center;\njustify-content: center;"
+                    },
+                    {
+                        "trigger": "app",
+                        "title": ".app",
+                        "insertText": ".app {\n  padding: 24px;\n}"
+                    },
+                    {
+                        "trigger": "reset",
+                        "title": "CSS reset",
+                        "insertText":
+                            "*, *::before, *::after {\n  box-sizing: border-box;\n}\n\nbody {\n  margin: 0;\n  min-height: 100vh;\n}"
+                    },
+                    {
+                        "trigger": "card",
+                        "title": "card",
+                        "insertText":
+                            ".card {\n  padding: 16px;\n  border: 1px solid rgba(25, 242, 107, 0.35);\n  border-radius: 8px;\n  background: rgba(255, 255, 255, 0.06);\n}"
+                    },
+                    {
+                        "trigger": "button",
+                        "title": "button",
+                        "insertText":
+                            ".button {\n  border: 0;\n  border-radius: 8px;\n  padding: 12px 16px;\n  background: #19f26b;\n  color: #031006;\n  font-weight: 700;\n}"
+                    },
+                    {
+                        "trigger": "responsive",
+                        "title": "responsive grid",
+                        "insertText":
+                            ".grid {\n  display: grid;\n  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));\n  gap: 16px;\n}"
+                    }
+                ],
+                "referenceSections": [
+                    {
+                        "title": "Selector",
+                        "body": "Ein Selector waehlt Elemente fuer Styles aus.",
+                        "code": ".app {\n  padding: 24px;\n}"
+                    },
+                    {
+                        "title": "Flex Center",
+                        "body": "Zentriert Inhalt horizontal und vertikal.",
+                        "code":
+                            "display: flex;\nalign-items: center;\njustify-content: center;"
+                    }
+                ]
+            },
+            {
+                "id": "javascript",
+                "name": "JS",
+                "fileExtension": "app.js",
+                "keywords": [
+                    "const",
+                    "let",
+                    "var",
+                    "function",
+                    "return",
+                    "if",
+                    "else",
+                    "for",
+                    "while",
+                    "class",
+                    "new",
+                    "import",
+                    "export",
+                    "from",
+                    "async",
+                    "await",
+                    "try",
+                    "catch",
+                    "throw",
+                    "true",
+                    "false",
+                    "null",
+                    "undefined",
+                    "document",
+                    "querySelector",
+                    "addEventListener",
+                    "console",
+                    "log"
+                ],
+                "sampleCode": "",
+                "boilerplateCode":
+                    "const app = document.querySelector('.app');\n\nif (app) {\n  console.log('Khyra ready');\n}",
+                "snippets": [
+                    {
+                        "trigger": "log",
+                        "title": "console.log",
+                        "insertText": "console.log();"
+                    },
+                    {
+                        "trigger": "query",
+                        "title": "querySelector",
+                        "insertText":
+                            "const element = document.querySelector('');"
+                    },
+                    {
+                        "trigger": "event",
+                        "title": "addEventListener",
+                        "insertText":
+                            "element.addEventListener('click', () => {\n  \n});"
+                    },
+                    {
+                        "trigger": "fn",
+                        "title": "function",
+                        "insertText": "function name() {\n  \n}"
+                    },
+                    {
+                        "trigger": "fetch",
+                        "title": "fetch JSON",
+                        "insertText":
+                            "async function loadData() {\n  const response = await fetch('data.json');\n  const data = await response.json();\n  console.log(data);\n}\n\nloadData();"
+                    },
+                    {
+                        "trigger": "store",
+                        "title": "localStorage",
+                        "insertText":
+                            "const key = 'khyra-state';\nconst state = JSON.parse(localStorage.getItem(key) ?? '{}');\n\nstate.updatedAt = new Date().toISOString();\nlocalStorage.setItem(key, JSON.stringify(state));"
+                    },
+                    {
+                        "trigger": "module",
+                        "title": "ES module",
+                        "insertText":
+                            "export function run() {\n  console.log('module ready');\n}\n\nrun();"
+                    },
+                    {
+                        "trigger": "class",
+                        "title": "class",
+                        "insertText":
+                            "class AppController {\n  constructor(root) {\n    this.root = root;\n  }\n\n  start() {\n    this.root.textContent = 'Ready';\n  }\n}\n\nnew AppController(document.querySelector('.app')).start();"
+                    }
+                ],
+                "referenceSections": [
+                    {
+                        "title": "Variable",
+                        "body":
+                            "const fuer feste Bindings, let fuer veraenderbare Werte.",
+                        "code": "const name = 'Khyra';\nlet count = 0;"
+                    },
+                    {
+                        "title": "Event",
+                        "body": "Reagiert auf eine Nutzeraktion im Browser.",
+                        "code":
+                            "element.addEventListener('click', () => {\n  console.log('clicked');\n});"
+                    }
+                ]
+            },
+            {
+                "id": "swift",
+                "name": "Swift",
+                "fileExtension": "Main.swift",
+                "keywords": [
+                    "import",
+                    "SwiftUI",
+                    "struct",
+                    "class",
+                    "enum",
+                    "let",
+                    "var",
+                    "func",
+                    "return",
+                    "if",
+                    "else",
+                    "for",
+                    "while",
+                    "switch",
+                    "case",
+                    "default",
+                    "protocol",
+                    "extension",
+                    "View",
+                    "body",
+                    "some",
+                    "private"
+                ],
+                "sampleCode": "",
+                "boilerplateCode":
+                    "import SwiftUI\n\nstruct ContentView: View {\n  var body: some View {\n    Text(\"Hello Khyra\")\n  }\n}",
+                "snippets": [
+                    {
+                        "trigger": "view",
+                        "title": "SwiftUI View",
+                        "insertText":
+                            "struct ContentView: View {\n  var body: some View {\n    Text(\"Hello\")\n  }\n}"
+                    },
+                    {
+                        "trigger": "state",
+                        "title": "@State",
+                        "insertText": "@State private var value = \"\""
+                    },
+                    {
+                        "trigger": "button",
+                        "title": "Button",
+                        "insertText":
+                            "Button {\n  \n} label: {\n  Label(\"Run\", systemImage: \"play.fill\")\n}"
+                    },
+                    {
+                        "trigger": "nav",
+                        "title": "NavigationStack",
+                        "insertText":
+                            "NavigationStack {\n  List {\n    NavigationLink(\"Detail\") {\n      Text(\"Detail\")\n    }\n  }\n  .navigationTitle(\"Khyra\")\n}"
+                    },
+                    {
+                        "trigger": "observable",
+                        "title": "@Observable Model",
+                        "insertText":
+                            "import Observation\n\n@Observable\nfinal class AppModel {\n  var title = \"Khyra\"\n}"
+                    },
+                    {
+                        "trigger": "list",
+                        "title": "List",
+                        "insertText":
+                            "List(items) { item in\n  Text(item.title)\n}"
+                    },
+                    {
+                        "trigger": "sheet",
+                        "title": "Sheet",
+                        "insertText":
+                            ".sheet(isPresented: $isPresented) {\n  NavigationStack {\n    Text(\"Sheet\")\n      .navigationTitle(\"Edit\")\n  }\n}"
+                    }
+                ],
+                "referenceSections": [
+                    {
+                        "title": "SwiftUI View",
+                        "body":
+                            "Eine View beschreibt UI deklarativ ueber body.",
+                        "code":
+                            "struct ContentView: View {\n  var body: some View {\n    Text(\"Hello\")\n  }\n}"
+                    }
+                ]
+            },
+            {
+                "id": "python",
+                "name": "Python",
+                "fileExtension": "main.py",
+                "keywords": [
+                    "def",
+                    "class",
+                    "import",
+                    "from",
+                    "return",
+                    "if",
+                    "elif",
+                    "else",
+                    "for",
+                    "while",
+                    "in",
+                    "try",
+                    "except",
+                    "with",
+                    "as",
+                    "True",
+                    "False",
+                    "None",
+                    "print",
+                    "async",
+                    "await"
+                ],
+                "sampleCode": "",
+                "boilerplateCode":
+                    "def main():\n  print('Hello Khyra')\n\nif __name__ == '__main__':\n  main()",
+                "snippets": [
+                    {
+                        "trigger": "def",
+                        "title": "function",
+                        "insertText": "def name():\n  pass"
+                    },
+                    {
+                        "trigger": "class",
+                        "title": "class",
+                        "insertText":
+                            "class Name:\n  def __init__(self):\n    pass"
+                    },
+                    {
+                        "trigger": "main",
+                        "title": "main guard",
+                        "insertText": "if __name__ == '__main__':\n  main()"
+                    },
+                    {
+                        "trigger": "flask",
+                        "title": "Flask App",
+                        "insertText":
+                            "from flask import Flask\n\napp = Flask(__name__)\n\n@app.get('/')\ndef home():\n  return {'message': 'Hello Flask'}\n\nif __name__ == '__main__':\n  app.run(debug=True)"
+                    },
+                    {
+                        "trigger": "fastapi",
+                        "title": "FastAPI App",
+                        "insertText":
+                            "from fastapi import FastAPI\n\napp = FastAPI()\n\n@app.get('/')\ndef home():\n  return {'message': 'Hello FastAPI'}"
+                    },
+                    {
+                        "trigger": "cli",
+                        "title": "CLI argparse",
+                        "insertText":
+                            "import argparse\n\nparser = argparse.ArgumentParser(description='Khyra CLI')\nparser.add_argument('name')\nargs = parser.parse_args()\n\nprint(f'Hello {args.name}')"
+                    }
+                ],
+                "frameworks": [
+                    {
+                        "id": "flask",
+                        "name": "Flask",
+                        "runtime": "Python server",
+                        "previewSupported": false,
+                        "detectionPatterns": [
+                            "from flask import Flask",
+                            "app = Flask"
+                        ],
+                        "boilerplateCode":
+                            "from flask import Flask, render_template_string\n\napp = Flask(__name__)\n\n@app.get('/')\ndef home():\n  return render_template_string('''\n  <!doctype html>\n  <html>\n    <body>\n      <h1>Hello Flask</h1>\n    </body>\n  </html>\n  ''')\n\nif __name__ == '__main__':\n  app.run(debug=True)",
+                        "notes":
+                            "Needs a Python runtime/server; Khyra can write and lint the file, not run the server yet."
+                    },
+                    {
+                        "id": "fastapi",
+                        "name": "FastAPI",
+                        "runtime": "Python server",
+                        "previewSupported": false,
+                        "detectionPatterns": [
+                            "from fastapi import FastAPI",
+                            "app = FastAPI"
+                        ],
+                        "boilerplateCode":
+                            "from fastapi import FastAPI\n\napp = FastAPI()\n\n@app.get('/')\ndef home():\n  return {'message': 'Hello FastAPI'}",
+                        "notes": "Needs uvicorn or another ASGI server."
+                    }
+                ],
+                "referenceSections": [
+                    {
+                        "title": "Function",
+                        "body": "Funktionen werden mit def erstellt.",
+                        "code": "def greet(name):\n  return f'Hello {name}'"
+                    }
+                ]
+            },
+            {
+                "id": "json",
+                "name": "JSON",
+                "fileExtension": "data.json",
+                "keywords": [
+                    "true",
+                    "false",
+                    "null"
+                ],
+                "sampleCode": "",
+                "boilerplateCode":
+                    "{\n  \"name\": \"Khyra\",\n  \"enabled\": true\n}",
+                "snippets":
+                    [
+                        {
+                            "trigger": "obj",
+                            "title": "object",
+                            "insertText": "{\n  \"key\": \"value\"\n}"
+                        },
+                        {
+                            "trigger": "arr",
+                            "title": "array",
+                            "insertText": "[\n  \n]"
+                        },
+                        {
+                            "trigger": "package",
+                            "title": "package.json",
+                            "insertText":
+                                "{\n  \"name\": \"khyra-app\",\n  \"version\": \"1.0.0\",\n  \"type\": \"module\",\n  \"scripts\": {\n    \"dev\": \"vite\",\n    \"build\": \"vite build\"\n  },\n  \"dependencies\": {}\n}"
+                        },
+                        {
+                            "trigger": "manifest",
+                            "title": "web manifest",
+                            "insertText":
+                                "{\n  \"name\": \"Khyra App\",\n  \"short_name\": \"Khyra\",\n  \"start_url\": \".\",\n  \"display\": \"standalone\",\n  \"background_color\": \"#050706\",\n  \"theme_color\": \"#19f26b\",\n  \"icons\": []\n}"
+                        },
+                        {
+                            "trigger": "tsconfig",
+                            "title": "tsconfig",
+                            "insertText":
+                                "{\n  \"compilerOptions\": {\n    \"target\": \"ES2022\",\n    \"module\": \"ESNext\",\n    \"strict\": true\n  }\n}"
+                        }
+                    ],
+                "referenceSections": [
+                    {
+                        "title": "Object",
+                        "body":
+                            "JSON speichert Daten als Objekte, Arrays, Strings, Zahlen, Booleans oder null.",
+                        "code":
+                            "{\n  \"items\": [1, 2, 3],\n  \"active\": true\n}"
+                    }
+                ]
+            },
+            {
+                "id": "php",
+                "name": "PHP",
+                "fileExtension": "index.php",
+                "keywords": [
+                    "php",
+                    "echo",
+                    "function",
+                    "return",
+                    "if",
+                    "else",
+                    "foreach",
+                    "as",
+                    "class",
+                    "public",
+                    "private",
+                    "protected",
+                    "new",
+                    "true",
+                    "false",
+                    "null",
+                    "$_GET",
+                    "$_POST",
+                    "$_SERVER",
+                    "html",
+                    "body",
+                    "div",
+                    "form"
+                ],
+                "sampleCode": "",
+                "boilerplateCode":
+                    "<?php\n$title = 'Khyra PHP';\n$items = ['HTML', 'CSS', 'PHP'];\n?>\n<!DOCTYPE html>\n<html lang=\"de\">\n<head>\n  <meta charset=\"UTF-8\">\n  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n  <title><?= $title ?></title>\n</head>\n<body>\n  <main class=\"app\">\n    <h1><?= $title ?></h1>\n    <ul>\n      <?php foreach ($items as $item): ?>\n        <li><?= htmlspecialchars($item) ?></li>\n      <?php endforeach; ?>\n    </ul>\n  </main>\n</body>\n</html>",
+                "snippets": [
+                    {
+                        "trigger": "php",
+                        "title": "PHP HTML Page",
+                        "insertText":
+                            "<?php\n$title = 'Khyra PHP';\n?>\n<!DOCTYPE html>\n<html lang=\"de\">\n<body>\n  <h1><?= $title ?></h1>\n</body>\n</html>"
+                    },
+                    {
+                        "trigger": "foreach",
+                        "title": "foreach template",
+                        "insertText":
+                            "<?php foreach ($items as $item): ?>\n  <li><?= htmlspecialchars($item) ?></li>\n<?php endforeach; ?>"
+                    },
+                    {
+                        "trigger": "form",
+                        "title": "POST form",
+                        "insertText":
+                            "<?php\n$name = $_POST['name'] ?? '';\n?>\n<form method=\"post\">\n  <input name=\"name\" value=\"<?= htmlspecialchars($name) ?>\">\n  <button type=\"submit\">Save</button>\n</form>"
+                    }
+                ],
+                "frameworks": [
+                    {
+                        "id": "laravel-blade",
+                        "name": "Laravel Blade",
+                        "runtime": "PHP server",
+                        "previewSupported": false,
+                        "detectionPatterns": [
+                            "@extends",
+                            "@section",
+                            "{{",
+                            "route("
+                        ],
+                        "boilerplateCode":
+                            "@extends('layouts.app')\n\n@section('content')\n  <main class=\"app\">\n    <h1>{{ $title }}</h1>\n\n    @foreach ($items as $item)\n      <p>{{ $item }}</p>\n    @endforeach\n  </main>\n@endsection",
+                        "notes":
+                            "Blade needs a Laravel/PHP runtime. Khyra can edit the template and store snippets."
+                    },
+                    {
+                        "id": "wordpress-theme",
+                        "name": "WordPress Theme",
+                        "runtime": "PHP server",
+                        "previewSupported": false,
+                        "detectionPatterns": [
+                            "wp_head",
+                            "wp_footer",
+                            "have_posts"
+                        ],
+                        "boilerplateCode":
+                            "<?php get_header(); ?>\n<main class=\"app\">\n  <?php if (have_posts()): ?>\n    <?php while (have_posts()): the_post(); ?>\n      <article>\n        <h1><?php the_title(); ?></h1>\n        <?php the_content(); ?>\n      </article>\n    <?php endwhile; ?>\n  <?php endif; ?>\n</main>\n<?php get_footer(); ?>",
+                        "notes":
+                            "WordPress templates need WordPress/PHP to run."
+                    }
+                ],
+                "referenceSections": [
+                    {
+                        "title": "PHP in HTML",
+                        "body":
+                            "PHP kann HTML-Dateien dynamisch ausgeben. Der Server ersetzt PHP-Blöcke vor der Ausgabe.",
+                        "code":
+                            "<?php $name = 'Khyra'; ?>\n<h1><?= htmlspecialchars($name) ?></h1>"
+                    }
+                ]
+            },
+            {
+                "id": "markdown",
+                "name": "MD",
+                "fileExtension": "README.md",
+                "keywords": [
+                    "#",
+                    "##",
+                    "###",
+                    "-",
+                    "*",
+                    "```",
+                    "link",
+                    "image",
+                    "table"
+                ],
+                "sampleCode": "",
+                "boilerplateCode": "# Khyra\n\n## Notes\n\n- Item\n",
+                "snippets": [
+                    {
+                        "trigger": "h1",
+                        "title": "heading",
+                        "insertText": "# Title"
+                    },
+                    {
+                        "trigger": "code",
+                        "title": "code block",
+                        "insertText": "```swift\n\n```"
+                    },
+                    {
+                        "trigger": "table",
+                        "title": "table",
+                        "insertText":
+                            "| Name | Value |\n| --- | --- |\n| Khyra | Editor |"
+                    },
+                    {
+                        "trigger": "readme",
+                        "title": "README",
+                        "insertText":
+                            "# Project Name\n\n## Setup\n\n```bash\nnpm install\nnpm run dev\n```\n\n## Features\n\n- Editor\n- Preview\n- Docs\n"
+                    },
+                    {
+                        "trigger": "api",
+                        "title": "API Docs",
+                        "insertText":
+                            "# API\n\n## GET /items\n\nReturns all items.\n\n```json\n{\n  \"items\": []\n}\n```"
+                    },
+                    {
+                        "trigger": "changelog",
+                        "title": "CHANGELOG",
+                        "insertText":
+                            "# Changelog\n\n## 1.0.0\n\n- Initial release\n"
+                    }
+                ],
+                "referenceSections": [
+                    {
+                        "title": "Code Block",
+                        "body": "Drei Backticks markieren einen Codeblock.",
+                        "code": "```swift\nlet name = \"Khyra\"\n```"
+                    }
+                ]
+            },
+            {
+                "id": "sql",
+                "name": "SQL",
+                "fileExtension": "query.sql",
+                "keywords": [
+                    "SELECT",
+                    "FROM",
+                    "WHERE",
+                    "INSERT",
+                    "UPDATE",
+                    "DELETE",
+                    "CREATE",
+                    "TABLE",
+                    "JOIN",
+                    "LEFT",
+                    "RIGHT",
+                    "INNER",
+                    "ORDER",
+                    "BY",
+                    "GROUP",
+                    "LIMIT",
+                    "AS",
+                    "AND",
+                    "OR",
+                    "NULL"
+                ],
+                "sampleCode": "",
+                "boilerplateCode": "SELECT *\nFROM users\nWHERE active = 1;",
+                "snippets": [
+                    {
+                        "trigger": "select",
+                        "title": "SELECT",
+                        "insertText":
+                            "SELECT *\nFROM table_name\nWHERE condition;"
+                    },
+                    {
+                        "trigger": "insert",
+                        "title": "INSERT",
+                        "insertText":
+                            "INSERT INTO table_name (column_name)\nVALUES (value);"
+                    },
+                    {
+                        "trigger": "create",
+                        "title": "CREATE TABLE",
+                        "insertText":
+                            "CREATE TABLE users (\n  id INTEGER PRIMARY KEY,\n  name TEXT NOT NULL,\n  email TEXT UNIQUE,\n  active INTEGER DEFAULT 1\n);"
+                    },
+                    {
+                        "trigger": "join",
+                        "title": "JOIN",
+                        "insertText":
+                            "SELECT users.name, orders.total\nFROM users\nJOIN orders ON orders.user_id = users.id\nWHERE users.active = 1;"
+                    },
+                    {
+                        "trigger": "index",
+                        "title": "CREATE INDEX",
+                        "insertText":
+                            "CREATE INDEX index_users_email\nON users (email);"
+                    }
+                ],
+                "referenceSections": [
+                    {
+                        "title": "SELECT",
+                        "body": "Liest Daten aus einer Tabelle.",
+                        "code":
+                            "SELECT name, email\nFROM users\nWHERE active = 1;"
+                    }
+                ]
+            }
+        ]
+}
