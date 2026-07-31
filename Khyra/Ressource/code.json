@@ -681,7 +681,7 @@
             },
             {
                 "id": "markdown",
-                "name": "MD",
+                "name": "Markdown",
                 "fileExtension": "README.md",
                 "keywords": [
                     "#",
@@ -690,12 +690,17 @@
                     "-",
                     "*",
                     "```",
+                    "README",
+                    "Installation",
+                    "Usage",
+                    "License",
                     "link",
                     "image",
                     "table"
                 ],
                 "sampleCode": "",
-                "boilerplateCode": "# Khyra\n\n## Notes\n\n- Item\n",
+                "boilerplateCode":
+                    "# Project Name\n\n## Overview\n\nShort description of the project.\n\n## Files\n\n- `index.html` - Main markup\n- `style.css` - Styles\n- `app.js` - App logic\n\n## Usage\n\nOpen the project in Khyra and edit the files.\n",
                 "snippets": [
                     {
                         "trigger": "h1",
@@ -717,7 +722,25 @@
                         "trigger": "readme",
                         "title": "README",
                         "insertText":
-                            "# Project Name\n\n## Setup\n\n```bash\nnpm install\nnpm run dev\n```\n\n## Features\n\n- Editor\n- Preview\n- Docs\n"
+                            "# Project Name\n\n## Overview\n\nShort description.\n\n## Features\n\n- Feature one\n- Feature two\n\n## Usage\n\nExplain how to run or open the project.\n\n## Notes\n\n- Important detail\n"
+                    },
+                    {
+                        "trigger": "readme-web",
+                        "title": "README Web",
+                        "insertText":
+                            "# Web Project\n\n## Files\n\n- `index.html` - Page structure\n- `style.css` - Visual design\n- `app.js` - Interactions\n\n## Preview\n\nOpen the Preview tab in Khyra.\n"
+                    },
+                    {
+                        "trigger": "install",
+                        "title": "Installation",
+                        "insertText":
+                            "## Installation\n\n```bash\nnpm install\n```\n"
+                    },
+                    {
+                        "trigger": "usage",
+                        "title": "Usage",
+                        "insertText":
+                            "## Usage\n\nDescribe the main workflow here.\n"
                     },
                     {
                         "trigger": "api",

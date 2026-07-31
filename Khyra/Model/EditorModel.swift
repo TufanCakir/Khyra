@@ -39,9 +39,11 @@ final class EditorModel {
     var projectItems: [ProjectItem] = []
     var selectedProjectItemID: UUID?
     var projectName = "Untitled"
+    var projectIdentifier = "untitled"
     var currentProjectID = UUID()
     var hasActiveProject = false
     var snippetLibrary = SnippetLibraryViewModel()
+    var codeVersions: [CodeVersion] = []
 
     var selectedLanguage: CodeLanguage {
         if let activeItem, let languageID = activeItem.languageID {
@@ -83,6 +85,45 @@ final class EditorModel {
         CodeLinter.lint(activeCode.wrappedValue, language: selectedLanguage)
     }
 
+    var cleanCodePlan: CleanCodePlan {
+        let htmlCode = activeCode.wrappedValue
+        guard selectedLanguage.id == "html" else {
+            return CleanCodePlan(
+                title: "Format Code",
+                summary:
+                    "This will format the current \(selectedLanguage.name) file.",
+                files: [selectedLanguage.fileExtension],
+                extractsFiles: false
+            )
+        }
+
+        var files: [String] = [
+            activeItem?.name ?? selectedLanguage.fileExtension
+        ]
+        let containsCSS = containsElement("style", in: htmlCode)
+        let containsJS = containsElement("script", in: htmlCode)
+
+        if containsCSS {
+            files.append("style.css")
+        }
+        if containsJS {
+            files.append("app.js")
+        }
+
+        let summary =
+            containsCSS || containsJS
+            ? "Inline CSS/JS will be moved into separate project files."
+            : "No inline CSS or JS found. This will format the current HTML file."
+
+        return CleanCodePlan(
+            title: containsCSS || containsJS
+                ? "Clean Code Refactor" : "Format HTML",
+            summary: summary,
+            files: files,
+            extractsFiles: containsCSS || containsJS
+        )
+    }
+
     var lineCount: Int {
         max(
             1,
@@ -104,6 +145,7 @@ final class EditorModel {
             UserDefaults.standard.string(forKey: Self.selectedThemeKey)
             ?? EditorTheme.classicDark.id
         seedDocumentsIfNeeded()
+        reloadVersions()
     }
 
     func setLanguage(_ languageCode: String) {
@@ -176,6 +218,7 @@ final class EditorModel {
     func createProject(template: ProjectTemplate) {
         currentProjectID = UUID()
         projectName = template.title
+        projectIdentifier = normalizedProjectIdentifier(template.title)
         hasActiveProject = true
         documents = [:]
         projectItems = []
@@ -199,11 +242,55 @@ final class EditorModel {
         if let activeItem, let languageID = activeItem.languageID {
             selectedLanguageID = languageID
         }
+        reloadVersions()
+    }
+
+    func createProject(
+        template: ProjectTemplate,
+        name: String,
+        identifier: String,
+        languageID: String,
+        frameworkID: String?,
+        includeReadme: Bool
+    ) {
+        createProject(template: template)
+        projectName = normalizedFileName(name, fallback: template.title)
+        projectIdentifier = normalizedProjectIdentifier(identifier)
+
+        guard
+            let language = languageStore.languages.first(where: {
+                $0.id == languageID
+            })
+        else {
+            return
+        }
+
+        selectedLanguageID = language.id
+        if let item = projectItems.first(where: { $0.languageID == language.id }
+        ) {
+            selectedProjectItemID = item.id
+        } else {
+            addFile(language: language, name: language.fileExtension)
+        }
+
+        if let frameworkID,
+            let framework = language.frameworks.first(where: {
+                $0.id == frameworkID
+            }),
+            let activeItem
+        {
+            setCode(framework.boilerplateCode, for: activeItem.documentKey)
+        }
+
+        if includeReadme {
+            addReadmeIfNeeded()
+        }
     }
 
     func saveProject() {
         let project = SavedProject(
             id: currentProjectID,
+            projectIdentifier: projectIdentifier,
             projectName: projectName,
             selectedLanguageID: selectedLanguageID,
             selectedProjectItemID: selectedProjectItemID,
@@ -216,6 +303,7 @@ final class EditorModel {
 
     func loadProject(_ project: SavedProject) {
         currentProjectID = project.id
+        projectIdentifier = project.projectIdentifier
         projectName = project.projectName
         hasActiveProject = true
         selectedLanguageID = project.selectedLanguageID
@@ -223,6 +311,7 @@ final class EditorModel {
         documents = project.documents
         projectItems = project.projectItems
         cursorLocation = 0
+        reloadVersions()
     }
 
     func selectProjectItem(_ item: ProjectItem) {
@@ -236,6 +325,7 @@ final class EditorModel {
             cursorLocation,
             activeCode.wrappedValue.utf16.count
         )
+        reloadVersions()
     }
 
     func selectLanguage(_ languageID: String) {
@@ -246,6 +336,7 @@ final class EditorModel {
             cursorLocation,
             activeCode.wrappedValue.utf16.count
         )
+        reloadVersions()
     }
 
     func addFile(language: CodeLanguage, name: String) {
@@ -264,6 +355,7 @@ final class EditorModel {
         selectedLanguageID = language.id
         setCode("", for: item.documentKey)
         cursorLocation = 0
+        reloadVersions()
     }
 
     func addFolder() {
@@ -298,6 +390,62 @@ final class EditorModel {
                 selectedLanguageID = languageID
             }
         }
+        reloadVersions()
+    }
+
+    func saveCodeVersion(title: String? = nil) {
+        let currentCode = activeCode.wrappedValue
+        let trimmedCode = currentCode.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        guard !trimmedCode.isEmpty else { return }
+        let trimmedTitle =
+            title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        let version = CodeVersion(
+            title: trimmedTitle.isEmpty ? defaultVersionTitle() : trimmedTitle,
+            languageID: selectedLanguage.id,
+            documentKey: activeDocumentKey,
+            code: currentCode,
+            lineCount: lineCount,
+            issueCount: issues.count
+        )
+        VersionStore.save(
+            version,
+            projectID: currentProjectID,
+            documentKey: activeDocumentKey
+        )
+        reloadVersions()
+    }
+
+    func deleteCodeVersion(_ version: CodeVersion) {
+        VersionStore.delete(
+            version,
+            projectID: currentProjectID,
+            documentKey: activeDocumentKey
+        )
+        reloadVersions()
+    }
+
+    func restoreCodeVersion(_ version: CodeVersion) {
+        setCode(version.code, for: activeDocumentKey)
+        selectedLanguageID = version.languageID
+        cursorLocation = min(
+            version.code.utf16.count,
+            activeCode.wrappedValue.utf16.count
+        )
+    }
+
+    func language(for languageID: String) -> CodeLanguage {
+        languageStore.languages.first { $0.id == languageID }
+            ?? selectedLanguage
+    }
+
+    func jumpToIssue(_ issue: LintIssue) {
+        cursorLocation = utf16OffsetForLine(
+            issue.line,
+            in: activeCode.wrappedValue
+        )
     }
 
     func exportText(for item: ProjectItem) -> String {
@@ -464,6 +612,36 @@ final class EditorModel {
             """
     }
 
+    private func reloadVersions() {
+        codeVersions = VersionStore.load(
+            projectID: currentProjectID,
+            documentKey: activeDocumentKey
+        )
+    }
+
+    private func defaultVersionTitle() -> String {
+        let dateText = Date().formatted(date: .omitted, time: .shortened)
+        return "Version \(dateText)"
+    }
+
+    private func utf16OffsetForLine(_ line: Int, in source: String) -> Int {
+        guard line > 1 else { return 0 }
+
+        var currentLine = 1
+        var offset = 0
+        for character in source {
+            if currentLine == line {
+                return offset
+            }
+            offset += character.utf16.count
+            if character == "\n" {
+                currentLine += 1
+            }
+        }
+
+        return source.utf16.count
+    }
+
     private func currentPrefix() -> String {
         let source = activeCode.wrappedValue
         guard
@@ -551,6 +729,18 @@ final class EditorModel {
         )
     }
 
+    private func containsElement(_ tag: String, in html: String) -> Bool {
+        let pattern = "<\(tag)(?:\\s[^>]*)?>[\\s\\S]*?</\(tag)>"
+        guard
+            let expression = try? NSRegularExpression(
+                pattern: pattern,
+                options: [.caseInsensitive]
+            )
+        else { return false }
+        let range = NSRange(location: 0, length: (html as NSString).length)
+        return expression.firstMatch(in: html, range: range) != nil
+    }
+
     private func fileForLanguage(_ languageID: String, fallbackName: String)
         -> ProjectItem
     {
@@ -568,6 +758,51 @@ final class EditorModel {
         projectItems.append(item)
         setCode("", for: item.documentKey)
         return item
+    }
+
+    private func addReadmeIfNeeded() {
+        guard
+            !projectItems.contains(where: {
+                $0.name.lowercased() == "readme.md"
+            })
+        else {
+            return
+        }
+        let item = ProjectItem(
+            name: "README.md",
+            kind: .file,
+            languageID: "markdown",
+            children: []
+        )
+        projectItems.append(item)
+        setCode(readmeTemplate(), for: item.documentKey)
+    }
+
+    private func readmeTemplate() -> String {
+        let files =
+            projectItems
+            .filter { $0.kind == .file }
+            .map { "- `\($0.name)`" }
+            .joined(separator: "\n")
+        return """
+            # \(projectName)
+
+            ## Project ID
+
+            `\(projectIdentifier)`
+
+            ## Overview
+
+            Short description of the project.
+
+            ## Files
+
+            \(files.isEmpty ? "- No files yet" : files)
+
+            ## Notes
+
+            - Created in Khyra
+            """
     }
 
     private func setActiveCode(_ code: String) {
@@ -620,6 +855,18 @@ final class EditorModel {
     {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? fallback : trimmed
+    }
+
+    private func normalizedProjectIdentifier(_ identifier: String) -> String {
+        let trimmed = identifier.trimmingCharacters(in: .whitespacesAndNewlines)
+        let allowed = trimmed.lowercased().map { character in
+            character.isLetter || character.isNumber || character == "-"
+                ? character : "-"
+        }
+        let compacted = String(allowed)
+            .split(separator: "-")
+            .joined(separator: "-")
+        return compacted.isEmpty ? "untitled" : compacted
     }
 
     private func extractContent(tag: String, from html: inout String) -> String
@@ -714,6 +961,13 @@ struct ProjectItem: Identifiable, Equatable, Codable {
     var documentKey: String {
         id.uuidString
     }
+}
+
+struct CleanCodePlan: Equatable {
+    let title: String
+    let summary: String
+    let files: [String]
+    let extractsFiles: Bool
 }
 
 enum ProjectItemKind: Equatable, Codable {
@@ -838,8 +1092,8 @@ struct ProjectTemplate: Identifiable, Equatable {
             return ProjectTemplate(
                 id: "language-\(language.id)",
                 category: category(for: language),
-                title: "\(language.name) File",
-                subtitle: "Starter for \(language.fileExtension).",
+                title: templateTitle(for: language),
+                subtitle: templateSubtitle(for: language),
                 systemImage: iconName(for: language),
                 files: [
                     ProjectTemplateFile(
@@ -849,6 +1103,31 @@ struct ProjectTemplate: Identifiable, Equatable {
                     )
                 ]
             )
+        }
+    }
+
+    private static func templateTitle(for language: CodeLanguage) -> String {
+        switch language.id {
+        case "javascript": "JavaScript"
+        case "php": "PHP Page"
+        case "markdown": "README"
+        case "sql": "SQL Query"
+        default: language.name
+        }
+    }
+
+    private static func templateSubtitle(for language: CodeLanguage) -> String {
+        switch language.id {
+        case "html": "Basic page structure."
+        case "css": "Stylesheet starter."
+        case "javascript": "Browser script starter."
+        case "swift": "Swift starter code."
+        case "python": "Python script starter."
+        case "json": "Structured data starter."
+        case "php": "PHP with embedded HTML."
+        case "markdown": "Project README starter."
+        case "sql": "Database query starter."
+        default: "Starter for \(language.fileExtension)."
         }
     }
 

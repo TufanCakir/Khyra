@@ -12,6 +12,7 @@ struct WelcomeView: View {
     let navigate: (AppRoute) -> Void
     @State private var library = ProjectLibraryViewModel()
     @State private var activeModal: WelcomeModal?
+    @State private var selectedTemplate: ProjectTemplate?
 
     var body: some View {
         ZStack {
@@ -22,11 +23,28 @@ struct WelcomeView: View {
                     model: model,
                     strings: model.appStrings,
                     theme: model.selectedTheme,
+                    onSelect: { template in
+                        selectedTemplate = template
+                        activeModal = .projectSetup
+                    },
+                    onClose: { activeModal = nil }
+                )
+            }
+
+            if activeModal == .projectSetup, let selectedTemplate {
+                ProjectSetupModal(
+                    model: model,
+                    library: library,
+                    template: selectedTemplate,
+                    theme: model.selectedTheme,
                     onCreate: {
+                        library.reload()
                         activeModal = nil
                         navigate(.editor)
                     },
-                    onClose: { activeModal = nil }
+                    onClose: {
+                        activeModal = nil
+                    }
                 )
             }
 
@@ -62,26 +80,32 @@ struct WelcomeView: View {
     }
 
     private var content: some View {
-        VStack(alignment: .leading, spacing: 24) {
+        VStack(spacing: 0) {
             Spacer()
 
-            VStack(alignment: .leading, spacing: 10) {
-                Image(systemName: "chevron.left.forwardslash.chevron.right")
-                    .font(.system(size: 42, weight: .heavy))
-                    .foregroundStyle(model.selectedTheme.accent)
+            VStack(spacing: 18) {
+                Image(.khyraLogo)
+                    .resizable()
+                    .scaledToFit()
+
                 Text(strings.welcomeTitle)
                     .font(
-                        .system(size: 34, weight: .heavy, design: .monospaced)
+                        .system(size: 30, weight: .heavy, design: .monospaced)
                     )
+                    .multilineTextAlignment(.center)
+
                 Text(strings.welcomeSubtitle)
                     .font(.subheadline)
                     .foregroundStyle(model.selectedTheme.secondaryText)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+            .frame(maxWidth: .infinity)
 
-            VStack(spacing: 12) {
+            VStack(spacing: 10) {
                 ThemedActionButton(
                     title: strings.newProject,
-                    systemImage: "plus.rectangle.on.folder",
+                    systemImage: "folder.badge.plus",
                     theme: model.selectedTheme
                 ) {
                     activeModal = .templates
@@ -104,15 +128,16 @@ struct WelcomeView: View {
                     activeModal = .playgroundTemplates
                 }
             }
+            .frame(maxWidth: 360)
+            .padding(.top, 18)
 
             Spacer()
         }
-        .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 32)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         .background(model.selectedTheme.background)
         .foregroundStyle(model.selectedTheme.primaryText)
-        .navigationTitle("Welcome")
-        .navigationBarTitleDisplayMode(.inline)
     }
 
     private var strings: AppStrings {
@@ -122,6 +147,7 @@ struct WelcomeView: View {
 
 enum WelcomeModal {
     case templates
+    case projectSetup
     case playgroundTemplates
     case projects
 }
@@ -130,7 +156,7 @@ struct TemplatePickerModal: View {
     let model: EditorModel
     let strings: AppStrings
     let theme: EditorTheme
-    let onCreate: () -> Void
+    let onSelect: (ProjectTemplate) -> Void
     let onClose: () -> Void
 
     var body: some View {
@@ -139,11 +165,263 @@ struct TemplatePickerModal: View {
                 templates: ProjectTemplate.catalog(from: model.languageStore),
                 theme: theme
             ) { template in
-                model.createProject(template: template)
-                model.saveProject()
-                onCreate()
+                onSelect(template)
             }
         }
+    }
+}
+
+struct ProjectSetupModal: View {
+    let model: EditorModel
+    let library: ProjectLibraryViewModel
+    let template: ProjectTemplate
+    let theme: EditorTheme
+    let onCreate: () -> Void
+    let onClose: () -> Void
+
+    @State private var projectName: String
+    @State private var projectIdentifier: String
+    @State private var selectedLanguageID: String
+    @State private var selectedFrameworkID = "none"
+    @State private var includeReadme = true
+
+    init(
+        model: EditorModel,
+        library: ProjectLibraryViewModel,
+        template: ProjectTemplate,
+        theme: EditorTheme,
+        onCreate: @escaping () -> Void,
+        onClose: @escaping () -> Void
+    ) {
+        self.model = model
+        self.library = library
+        self.template = template
+        self.theme = theme
+        self.onCreate = onCreate
+        self.onClose = onClose
+
+        let initialLanguageID =
+            template.files.first?.languageID
+            ?? model.languageStore.languages.first?.id
+            ?? "html"
+        _projectName = State(initialValue: template.title)
+        _projectIdentifier = State(
+            initialValue: Self.identifier(from: template.title)
+        )
+        _selectedLanguageID = State(initialValue: initialLanguageID)
+    }
+
+    private var selectedLanguage: CodeLanguage {
+        model.languageStore.languages.first { $0.id == selectedLanguageID }
+            ?? CodeLanguage.htmlFallback
+    }
+
+    private var availableFrameworks: [CodeFramework] {
+        selectedLanguage.frameworks
+    }
+
+    private var normalizedIdentifier: String {
+        Self.identifier(from: projectIdentifier)
+    }
+
+    private var identifierExists: Bool {
+        library.projects.contains {
+            Self.identifier(from: $0.projectIdentifier) == normalizedIdentifier
+        }
+    }
+
+    private var validationMessage: String? {
+        if projectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return "Project name is required."
+        }
+        if normalizedIdentifier.isEmpty {
+            return "Project ID is required."
+        }
+        if identifierExists {
+            return "Project ID already exists."
+        }
+        return nil
+    }
+
+    private var canCreate: Bool {
+        validationMessage == nil
+    }
+
+    var body: some View {
+        ThemedModal(title: "Project Setup", theme: theme, onClose: onClose) {
+            VStack(alignment: .leading, spacing: 12) {
+                setupHeader
+
+                setupTextField(
+                    title: "Project Name",
+                    text: $projectName,
+                    systemImage: "textformat"
+                )
+
+                setupTextField(
+                    title: "Project ID",
+                    text: $projectIdentifier,
+                    systemImage: "number"
+                )
+
+                Picker("Language", selection: $selectedLanguageID) {
+                    ForEach(model.languageStore.languages) { language in
+                        Text(language.name).tag(language.id)
+                    }
+                }
+                .pickerStyle(.navigationLink)
+                .tint(theme.accent)
+
+                Picker("Framework", selection: $selectedFrameworkID) {
+                    Text("None").tag("none")
+                    ForEach(availableFrameworks) { framework in
+                        Text(framework.name).tag(framework.id)
+                    }
+                }
+                .pickerStyle(.navigationLink)
+                .tint(theme.accent)
+
+                Toggle(isOn: $includeReadme) {
+                    Label("Add README.md", systemImage: "doc.richtext")
+                        .font(
+                            .system(
+                                size: 13,
+                                weight: .heavy,
+                                design: .monospaced
+                            )
+                        )
+                }
+                .tint(theme.accent)
+                .padding(10)
+                .background(
+                    theme.controlBackground,
+                    in: RoundedRectangle(cornerRadius: 8)
+                )
+
+                if let validationMessage {
+                    Label(
+                        validationMessage,
+                        systemImage: "exclamationmark.triangle.fill"
+                    )
+                    .font(
+                        .system(size: 12, weight: .heavy, design: .monospaced)
+                    )
+                    .foregroundStyle(theme.error)
+                } else {
+                    Label(
+                        "ID: \(normalizedIdentifier)",
+                        systemImage: "checkmark.circle.fill"
+                    )
+                    .font(
+                        .system(size: 12, weight: .heavy, design: .monospaced)
+                    )
+                    .foregroundStyle(theme.success)
+                }
+
+                HStack(spacing: 10) {
+                    Button(action: onClose) {
+                        Label("Cancel", systemImage: "xmark")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(theme.secondaryText)
+                    .padding(12)
+                    .background(
+                        theme.controlBackground,
+                        in: RoundedRectangle(cornerRadius: 8)
+                    )
+
+                    Button(action: createProject) {
+                        Label("Create", systemImage: "checkmark")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(
+                        canCreate ? theme.selectedText : theme.secondaryText
+                    )
+                    .padding(12)
+                    .background(
+                        canCreate
+                            ? theme.accent.opacity(0.24)
+                            : theme.controlBackground,
+                        in: RoundedRectangle(cornerRadius: 8)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(
+                                canCreate ? theme.accent : theme.border,
+                                lineWidth: 1
+                            )
+                    )
+                    .disabled(!canCreate)
+                }
+            }
+            .onChange(of: selectedLanguageID) {
+                selectedFrameworkID = "none"
+            }
+        }
+    }
+
+    private var setupHeader: some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: template.systemImage)
+                .font(.system(size: 18, weight: .heavy))
+                .foregroundStyle(theme.accent)
+                .frame(width: 28)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(template.title)
+                    .font(
+                        .system(size: 14, weight: .heavy, design: .monospaced)
+                    )
+                Text(template.subtitle)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(theme.secondaryText)
+            }
+        }
+    }
+
+    private func setupTextField(
+        title: String,
+        text: Binding<String>,
+        systemImage: String
+    ) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: systemImage)
+                .foregroundStyle(theme.accent)
+                .frame(width: 20)
+            TextField(title, text: text)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .font(.system(size: 13, weight: .heavy, design: .monospaced))
+        }
+        .padding(10)
+        .background(
+            theme.controlBackground,
+            in: RoundedRectangle(cornerRadius: 8)
+        )
+    }
+
+    private func createProject() {
+        guard canCreate else { return }
+        model.createProject(
+            template: template,
+            name: projectName,
+            identifier: normalizedIdentifier,
+            languageID: selectedLanguageID,
+            frameworkID: selectedFrameworkID == "none"
+                ? nil : selectedFrameworkID,
+            includeReadme: includeReadme
+        )
+        model.saveProject()
+        onCreate()
+    }
+
+    private static func identifier(from value: String) -> String {
+        let normalized = value.lowercased().map { character in
+            character.isLetter || character.isNumber || character == "-"
+                ? character : "-"
+        }
+        return String(normalized).split(separator: "-").joined(separator: "-")
     }
 }
 
@@ -194,6 +472,9 @@ struct ProjectPickerModal: View {
                                     model.loadProject(project)
                                     onOpen()
                                 },
+                                onRename: { name in
+                                    library.rename(project, to: name)
+                                },
                                 onDelete: {
                                     library.delete(project)
                                 }
@@ -211,7 +492,10 @@ struct ProjectLibraryRow: View {
     let project: SavedProject
     let theme: EditorTheme
     let onOpen: () -> Void
+    let onRename: (String) -> Void
     let onDelete: () -> Void
+    @State private var showRenamePrompt = false
+    @State private var renamedProjectName = ""
 
     var body: some View {
         HStack(spacing: 10) {
@@ -231,11 +515,30 @@ struct ProjectLibraryRow: View {
                         Text("\(project.projectItems.count) items")
                             .font(.caption)
                             .foregroundStyle(theme.secondaryText)
+                        Text(project.projectIdentifier)
+                            .font(
+                                .system(
+                                    size: 10,
+                                    weight: .bold,
+                                    design: .monospaced
+                                )
+                            )
+                            .foregroundStyle(theme.accent)
                     }
                     Spacer()
                 }
             }
             .buttonStyle(.plain)
+
+            Button {
+                renamedProjectName = project.projectName
+                showRenamePrompt = true
+            } label: {
+                Image(systemName: "pencil")
+                    .frame(width: 34, height: 34)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(theme.accent)
 
             Button(role: .destructive, action: onDelete) {
                 Image(systemName: "trash")
@@ -253,6 +556,15 @@ struct ProjectLibraryRow: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(theme.border, lineWidth: 1)
         )
+        .alert("Rename Project", isPresented: $showRenamePrompt) {
+            TextField("Project name", text: $renamedProjectName)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+            Button("Save") {
+                onRename(renamedProjectName)
+            }
+            Button("Cancel", role: .cancel) {}
+        }
     }
 }
 

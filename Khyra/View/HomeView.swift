@@ -13,6 +13,8 @@ struct HomeView: View {
     @State private var snippetDraft: SnippetEditorDraft?
     @State private var snippetCursorLocation = 0
     @State private var showSavedToast = false
+    @State private var showConsoleSheet = false
+    @State private var showCleanCodeConfirmation = false
 
     init(model: EditorModel) {
         self.model = model
@@ -85,10 +87,31 @@ struct HomeView: View {
                         ConsoleView(
                             issues: model.issues,
                             theme: model.selectedTheme,
+                            versions: model.codeVersions,
                             onToggle: {
                                 withAnimation(.snappy) {
                                     model.showConsole.toggle()
                                 }
+                            },
+                            onSaveVersion: { name in
+                                model.saveCodeVersion(title: name)
+                                showSavedFeedback()
+                            },
+                            onRestoreVersion: { version in
+                                model.restoreCodeVersion(version)
+                                showSavedFeedback()
+                            },
+                            onDeleteVersion: { version in
+                                model.deleteCodeVersion(version)
+                            },
+                            onIssueSelect: { issue in
+                                model.jumpToIssue(issue)
+                            },
+                            onOpenSheet: {
+                                showConsoleSheet = true
+                            },
+                            languageForVersion: { version in
+                                model.language(for: version.languageID)
                             }
                         )
                         .frame(height: 178)
@@ -132,6 +155,24 @@ struct HomeView: View {
                     theme: model.selectedTheme,
                     onSave: saveSnippetDraft,
                     onClose: { snippetDraft = nil }
+                )
+            }
+
+            if showCleanCodeConfirmation {
+                CleanCodeConfirmationModal(
+                    plan: model.cleanCodePlan,
+                    theme: model.selectedTheme,
+                    onConfirm: {
+                        model.cleanCodeRefactor()
+                        showCleanCodeConfirmation = false
+                        withAnimation(.snappy) {
+                            model.showNavigator = true
+                        }
+                        showSavedFeedback()
+                    },
+                    onCancel: {
+                        showCleanCodeConfirmation = false
+                    }
                 )
             }
         }
@@ -194,7 +235,7 @@ struct HomeView: View {
                     }
 
                     Button {
-                        model.cleanCodeRefactor()
+                        showCleanCodeConfirmation = true
                     } label: {
                         Label("Clean Code", systemImage: "sparkles")
                     }
@@ -207,6 +248,37 @@ struct HomeView: View {
                 }
                 .accessibilityLabel("Mehr Aktionen")
             }
+        }
+        .sheet(isPresented: $showConsoleSheet) {
+            ConsoleView(
+                issues: model.issues,
+                theme: model.selectedTheme,
+                versions: model.codeVersions,
+                onToggle: {
+                    showConsoleSheet = false
+                },
+                onSaveVersion: { name in
+                    model.saveCodeVersion(title: name)
+                    showSavedFeedback()
+                },
+                onRestoreVersion: { version in
+                    model.restoreCodeVersion(version)
+                    showSavedFeedback()
+                },
+                onDeleteVersion: { version in
+                    model.deleteCodeVersion(version)
+                },
+                onIssueSelect: { issue in
+                    model.jumpToIssue(issue)
+                },
+                languageForVersion: { version in
+                    model.language(for: version.languageID)
+                }
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(model.selectedTheme.background)
+            .preferredColorScheme(model.selectedTheme.preferredScheme)
         }
         .preferredColorScheme(model.selectedTheme.preferredScheme)
     }
@@ -278,6 +350,7 @@ struct HomeView: View {
             }
         }
     }
+
 }
 
 struct ProjectNavigatorView: View {
@@ -574,6 +647,105 @@ struct SnippetEditorModal: View {
                 }
             }
         }
+    }
+}
+
+struct CleanCodeConfirmationModal: View {
+    let plan: CleanCodePlan
+    let theme: EditorTheme
+    let onConfirm: () -> Void
+    let onCancel: () -> Void
+
+    var body: some View {
+        ThemedModal(title: plan.title, theme: theme, onClose: onCancel) {
+            VStack(alignment: .leading, spacing: 14) {
+                Text(plan.summary)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(theme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Label(
+                        plan.extractsFiles
+                            ? "Project Manager changes" : "Planned change",
+                        systemImage: plan.extractsFiles
+                            ? "folder.badge.gearshape" : "text.alignleft"
+                    )
+                    .font(
+                        .system(size: 12, weight: .heavy, design: .monospaced)
+                    )
+                    .foregroundStyle(theme.accent)
+
+                    ForEach(plan.files, id: \.self) { file in
+                        HStack(spacing: 8) {
+                            Image(systemName: fileIconName(for: file))
+                                .foregroundStyle(theme.accent)
+                                .frame(width: 18)
+                            Text(file)
+                                .font(
+                                    .system(
+                                        size: 12,
+                                        weight: .heavy,
+                                        design: .monospaced
+                                    )
+                                )
+                            Spacer(minLength: 0)
+                        }
+                        .padding(10)
+                        .background(
+                            theme.controlBackground,
+                            in: RoundedRectangle(cornerRadius: 8)
+                        )
+                    }
+                }
+
+                HStack(spacing: 10) {
+                    Button(action: onCancel) {
+                        Label("Cancel", systemImage: "xmark")
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(theme.secondaryText)
+                    .padding(12)
+                    .background(
+                        theme.controlBackground,
+                        in: RoundedRectangle(cornerRadius: 8)
+                    )
+
+                    Button(action: onConfirm) {
+                        Label(
+                            plan.extractsFiles ? "Refactor" : "Format",
+                            systemImage: "sparkles"
+                        )
+                        .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(theme.selectedText)
+                    .padding(12)
+                    .background(
+                        theme.accent.opacity(0.24),
+                        in: RoundedRectangle(cornerRadius: 8)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(theme.accent, lineWidth: 1)
+                    )
+                }
+            }
+        }
+    }
+
+    private func fileIconName(for fileName: String) -> String {
+        if fileName.hasSuffix(".css") {
+            return "paintbrush.pointed.fill"
+        }
+        if fileName.hasSuffix(".js") {
+            return "curlybraces"
+        }
+        if fileName.hasSuffix(".html") {
+            return "chevron.left.forwardslash.chevron.right"
+        }
+        return "doc.text"
     }
 }
 

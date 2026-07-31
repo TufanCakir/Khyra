@@ -9,23 +9,9 @@ import SwiftUI
 
 enum CodeLinter {
     private static let htmlSelfClosingTags: Set<String> = {
-        let tagNames: [String] = [
-            "area",
-            "base",
-            "br",
-            "col",
-            "embed",
-            "hr",
-            "img",
-            "input",
-            "link",
-            "meta",
-            "param",
-            "source",
-            "track",
-            "wbr",
-        ]
-        return Set(tagNames)
+        let tagNames =
+            "area base br col embed hr img input link meta param source track wbr"
+        return Set(tagNames.split(separator: " ").map(String.init))
     }()
 
     static func lint(_ source: String, language: CodeLanguage) -> [LintIssue] {
@@ -56,7 +42,10 @@ enum CodeLinter {
             let closeCount = source.filter { $0 == pair.1 }.count
             if openCount != closeCount {
                 let line = lineOfLastOccurrence(pair.0, in: source)
-                let message = "Unbalanced \(pair.0)\(pair.1) braces."
+                let message =
+                    openCount > closeCount
+                    ? "Missing closing '\(pair.1)' for '\(pair.0)'."
+                    : "Extra closing '\(pair.1)' without matching '\(pair.0)'."
                 issues.append(
                     LintIssue(line: line, severity: .error, message: message)
                 )
@@ -70,7 +59,7 @@ enum CodeLinter {
                 LintIssue(
                     line: lineOfLastOccurrence("\"", in: source),
                     severity: .error,
-                    message: "Unclosed double quote."
+                    message: "Unclosed double quote. Add a matching \"."
                 )
             )
         }
@@ -79,7 +68,7 @@ enum CodeLinter {
                 LintIssue(
                     line: lineOfLastOccurrence("'", in: source),
                     severity: .error,
-                    message: "Unclosed single quote."
+                    message: "Unclosed single quote. Add a matching '."
                 )
             )
         }
@@ -114,7 +103,7 @@ enum CodeLinter {
                         stack.removeLast()
                     } else {
                         let message =
-                            "Closing tag </\(name)> has no matching opener."
+                            "Unexpected </\(name)>. Add matching <\(name)> before it or remove the closing tag."
                         issues.append(
                             LintIssue(
                                 line: index + 1,
@@ -130,7 +119,8 @@ enum CodeLinter {
         }
 
         for tag in stack.suffix(3) {
-            let message = "Tag <\(tag.name)> is not closed."
+            let message =
+                "Missing closing tag </\(tag.name)> for <\(tag.name)>."
             issues.append(
                 LintIssue(line: tag.line, severity: .error, message: message)
             )
@@ -149,7 +139,7 @@ enum CodeLinter {
             return LintIssue(
                 line: index + 1,
                 severity: .warning,
-                message: "CSS declaration should end with a semicolon."
+                message: "CSS declaration should end with ';'."
             )
         }
     }
@@ -163,7 +153,7 @@ enum CodeLinter {
             return LintIssue(
                 line: index + 1,
                 severity: .warning,
-                message: "Use let or const instead of var."
+                message: "Avoid 'var'. Use 'let' or 'const' instead."
             )
         }
     }

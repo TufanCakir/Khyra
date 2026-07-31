@@ -11,6 +11,8 @@ struct PlaygroundView: View {
     let template: ProjectTemplate?
     @State private var model: EditorModel
     @State private var didLoadTemplate = false
+    @State private var showSavedToast = false
+    @State private var showConsoleSheet = false
 
     init(template: ProjectTemplate? = nil) {
         self.template = template
@@ -76,10 +78,31 @@ struct PlaygroundView: View {
                     ConsoleView(
                         issues: model.issues,
                         theme: model.selectedTheme,
+                        versions: model.codeVersions,
                         onToggle: {
                             withAnimation(.snappy) {
                                 model.showConsole.toggle()
                             }
+                        },
+                        onSaveVersion: { name in
+                            model.saveCodeVersion(title: name)
+                            showSavedFeedback()
+                        },
+                        onRestoreVersion: { version in
+                            model.restoreCodeVersion(version)
+                            showSavedFeedback()
+                        },
+                        onDeleteVersion: { version in
+                            model.deleteCodeVersion(version)
+                        },
+                        onIssueSelect: { issue in
+                            model.jumpToIssue(issue)
+                        },
+                        onOpenSheet: {
+                            showConsoleSheet = true
+                        },
+                        languageForVersion: { version in
+                            model.language(for: version.languageID)
                         }
                     )
                     .frame(height: 190)
@@ -91,6 +114,46 @@ struct PlaygroundView: View {
                     }
                 }
             }
+
+            if showSavedToast {
+                VStack {
+                    Spacer()
+                    SaveToast(theme: model.selectedTheme)
+                        .padding(.bottom, 92)
+                }
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .sheet(isPresented: $showConsoleSheet) {
+            ConsoleView(
+                issues: model.issues,
+                theme: model.selectedTheme,
+                versions: model.codeVersions,
+                onToggle: {
+                    showConsoleSheet = false
+                },
+                onSaveVersion: { name in
+                    model.saveCodeVersion(title: name)
+                    showSavedFeedback()
+                },
+                onRestoreVersion: { version in
+                    model.restoreCodeVersion(version)
+                    showSavedFeedback()
+                },
+                onDeleteVersion: { version in
+                    model.deleteCodeVersion(version)
+                },
+                onIssueSelect: { issue in
+                    model.jumpToIssue(issue)
+                },
+                languageForVersion: { version in
+                    model.language(for: version.languageID)
+                }
+            )
+            .presentationDetents([.medium, .large])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(model.selectedTheme.background)
+            .preferredColorScheme(model.selectedTheme.preferredScheme)
         }
         .foregroundStyle(model.selectedTheme.primaryText)
         .navigationTitle(template?.title ?? "Playground")
@@ -151,6 +214,19 @@ struct PlaygroundView: View {
         }
         .preferredColorScheme(model.selectedTheme.preferredScheme)
     }
+
+    private func showSavedFeedback() {
+        withAnimation(.snappy) {
+            showSavedToast = true
+        }
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_200_000_000)
+            withAnimation(.snappy) {
+                showSavedToast = false
+            }
+        }
+    }
+
 }
 
 #Preview {
