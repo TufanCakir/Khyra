@@ -13,6 +13,8 @@ import SwiftUI
 final class EditorModel {
     private static let selectedThemeKey = "khyra.selectedThemeID"
     private static let appLanguageKey = "khyra.appLanguageCode"
+    private static let firstProjectReviewRequestedKey =
+        "khyra.firstProjectReviewRequested"
 
     var languageStore = LanguageStore.load()
     var selectedLanguageID = "html"
@@ -299,6 +301,22 @@ final class EditorModel {
             savedAt: Date()
         )
         ProjectStore.save(project)
+    }
+
+    func shouldRequestReviewAfterFirstProjectCreation() -> Bool {
+        guard
+            !UserDefaults.standard.bool(
+                forKey: Self.firstProjectReviewRequestedKey
+            )
+        else {
+            return false
+        }
+
+        UserDefaults.standard.set(
+            true,
+            forKey: Self.firstProjectReviewRequestedKey
+        )
+        return true
     }
 
     func loadProject(_ project: SavedProject) {

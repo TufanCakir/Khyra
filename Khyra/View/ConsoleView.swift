@@ -14,10 +14,10 @@ enum ConsoleTab: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var title: String {
+    func title(strings: AppStrings) -> String {
         switch self {
-        case .issues: "Issues"
-        case .versions: "Versions"
+        case .issues: strings.issues
+        case .versions: strings.versions
         }
     }
 
@@ -32,6 +32,7 @@ enum ConsoleTab: String, CaseIterable, Identifiable {
 struct ConsoleView: View {
     let issues: [LintIssue]
     let theme: EditorTheme
+    let strings: AppStrings
     var versions: [CodeVersion] = []
     var onToggle: (() -> Void)? = nil
     var onSaveVersion: ((String) -> Void)? = nil
@@ -48,14 +49,15 @@ struct ConsoleView: View {
 
     private var statusText: String {
         if issues.isEmpty {
-            return "clean"
+            return strings.clean
         }
         let errors = issues.filter { $0.severity == .error }.count
         let warnings = issues.count - errors
         if errors > 0 {
-            return "\(errors) error\(errors == 1 ? "" : "s")"
+            return "\(errors) \(errors == 1 ? strings.error : strings.errors)"
         }
-        return "\(warnings) warning\(warnings == 1 ? "" : "s")"
+        return
+            "\(warnings) \(warnings == 1 ? strings.warning : strings.warnings)"
     }
 
     private var statusColor: Color {
@@ -73,6 +75,7 @@ struct ConsoleView: View {
             ConsoleCategoryBar(
                 selectedTab: $selectedTab,
                 theme: theme,
+                strings: strings,
                 canSaveVersion: onSaveVersion != nil
             ) {
                 versionName = ""
@@ -83,7 +86,7 @@ struct ConsoleView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "terminal.fill")
                         .foregroundStyle(theme.accent)
-                    Text("Terminal")
+                    Text(strings.terminal)
                         .font(
                             .system(
                                 size: 14,
@@ -118,7 +121,7 @@ struct ConsoleView: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(theme.accent)
-                    .accessibilityLabel("Terminal gross oeffnen")
+                    .accessibilityLabel(strings.openTerminalLarge)
                 }
             }
             .padding(.horizontal, 14)
@@ -135,21 +138,21 @@ struct ConsoleView: View {
             }
             .background(theme.consoleBackground)
         }
-        .alert("Save Version", isPresented: $showVersionNamePrompt) {
-            TextField("Version name", text: $versionName)
+        .alert(strings.saveVersion, isPresented: $showVersionNamePrompt) {
+            TextField(strings.versionName, text: $versionName)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
 
-            Button("Save") {
+            Button(strings.save) {
                 onSaveVersion?(versionName)
                 selectedTab = .versions
                 versionName = ""
             }
-            Button("Cancel", role: .cancel) {
+            Button(strings.cancel, role: .cancel) {
                 versionName = ""
             }
         } message: {
-            Text("Name this local code version.")
+            Text(strings.saveVersionMessage)
         }
         .sheet(item: $previewVersion) { version in
             CodeVersionPreviewSheet(
@@ -157,6 +160,7 @@ struct ConsoleView: View {
                 language: languageForVersion?(version)
                     ?? CodeLanguage.htmlFallback,
                 theme: theme,
+                strings: strings,
                 onRestore: {
                     onRestoreVersion?(version)
                     previewVersion = nil
@@ -178,7 +182,7 @@ struct ConsoleView: View {
                 if issues.isEmpty {
                     ConsoleLine(
                         icon: "checkmark.circle.fill",
-                        text: "No lint errors found.",
+                        text: strings.noLintErrors,
                         color: theme.success
                     )
                 } else {
@@ -186,7 +190,11 @@ struct ConsoleView: View {
                         Button {
                             onIssueSelect?(issue)
                         } label: {
-                            ConsoleIssueRow(issue: issue, theme: theme)
+                            ConsoleIssueRow(
+                                issue: issue,
+                                theme: theme,
+                                strings: strings
+                            )
                         }
                         .buttonStyle(.plain)
                     }
@@ -203,7 +211,7 @@ struct ConsoleView: View {
                 if versions.isEmpty {
                     ConsoleLine(
                         icon: "clock.badge.exclamationmark",
-                        text: "No local versions saved.",
+                        text: strings.noLocalVersions,
                         color: theme.secondaryText
                     )
                 } else {
@@ -211,6 +219,7 @@ struct ConsoleView: View {
                         ConsoleVersionRow(
                             version: version,
                             theme: theme,
+                            strings: strings,
                             onRestore: {
                                 onRestoreVersion?(version)
                             },
@@ -225,19 +234,19 @@ struct ConsoleView: View {
                             Button {
                                 previewVersion = version
                             } label: {
-                                Label("Info", systemImage: "info.circle")
+                                Label(strings.info, systemImage: "info.circle")
                             }
                             Button(role: .destructive) {
                                 onDeleteVersion?(version)
                             } label: {
-                                Label("Delete", systemImage: "trash")
+                                Label(strings.delete, systemImage: "trash")
                             }
                         }
                         .swipeActions(edge: .trailing) {
                             Button(role: .destructive) {
                                 onDeleteVersion?(version)
                             } label: {
-                                Label("Delete", systemImage: "trash")
+                                Label(strings.delete, systemImage: "trash")
                             }
                         }
                     }
@@ -252,6 +261,7 @@ struct ConsoleView: View {
 struct ConsoleCategoryBar: View {
     @Binding var selectedTab: ConsoleTab
     let theme: EditorTheme
+    let strings: AppStrings
     let canSaveVersion: Bool
     let onSaveVersion: () -> Void
 
@@ -262,16 +272,19 @@ struct ConsoleCategoryBar: View {
                     Button {
                         selectedTab = tab
                     } label: {
-                        Label(tab.title, systemImage: tab.systemImage)
-                            .font(
-                                .system(
-                                    size: 11,
-                                    weight: .heavy,
-                                    design: .monospaced
-                                )
+                        Label(
+                            tab.title(strings: strings),
+                            systemImage: tab.systemImage
+                        )
+                        .font(
+                            .system(
+                                size: 11,
+                                weight: .heavy,
+                                design: .monospaced
                             )
-                            .padding(.horizontal, 10)
-                            .frame(height: 30)
+                        )
+                        .padding(.horizontal, 10)
+                        .frame(height: 30)
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(
@@ -296,7 +309,7 @@ struct ConsoleCategoryBar: View {
 
                 if canSaveVersion {
                     Button(action: onSaveVersion) {
-                        Label("Save", systemImage: "plus")
+                        Label(strings.save, systemImage: "plus")
                             .font(
                                 .system(
                                     size: 11,
@@ -329,6 +342,7 @@ struct ConsoleCategoryBar: View {
 struct ConsoleIssueRow: View {
     let issue: LintIssue
     let theme: EditorTheme
+    let strings: AppStrings
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -338,12 +352,12 @@ struct ConsoleIssueRow: View {
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 3) {
-                Text(issue.severity.title)
+                Text(issue.severity.title(strings: strings))
                     .font(
                         .system(size: 10, weight: .heavy, design: .monospaced)
                     )
                     .foregroundStyle(issue.severity.color(in: theme))
-                Text("Line \(issue.line)")
+                Text("\(strings.line) \(issue.line)")
                     .font(
                         .system(size: 11, weight: .heavy, design: .monospaced)
                     )
@@ -375,6 +389,7 @@ struct ConsoleIssueRow: View {
 struct ConsoleVersionRow: View {
     let version: CodeVersion
     let theme: EditorTheme
+    let strings: AppStrings
     let onRestore: () -> Void
     let onInfo: () -> Void
     let onDelete: () -> Void
@@ -406,7 +421,7 @@ struct ConsoleVersionRow: View {
                     )
                     .foregroundStyle(theme.secondaryText)
                 Text(
-                    "\(version.lineCount) lines • \(version.issueCount) issues"
+                    "\(version.lineCount) \(strings.lines) • \(version.issueCount) \(strings.issueCount)"
                 )
                 .font(.system(size: 10, weight: .semibold, design: .monospaced))
                 .foregroundStyle(
@@ -450,6 +465,7 @@ struct CodeVersionPreviewSheet: View {
     let version: CodeVersion
     let language: CodeLanguage
     let theme: EditorTheme
+    let strings: AppStrings
     let onRestore: () -> Void
     let onDelete: () -> Void
 
@@ -495,7 +511,10 @@ struct CodeVersionPreviewSheet: View {
 
                 ToolbarItem(placement: .topBarTrailing) {
                     Button(action: onRestore) {
-                        Label("Restore", systemImage: "arrow.counterclockwise")
+                        Label(
+                            strings.restore,
+                            systemImage: "arrow.counterclockwise"
+                        )
                     }
                 }
             }
@@ -506,6 +525,7 @@ struct CodeVersionPreviewSheet: View {
 
 struct ConsoleCollapsedBar: View {
     let theme: EditorTheme
+    let strings: AppStrings
     let onToggle: () -> Void
 
     var body: some View {
@@ -513,7 +533,7 @@ struct ConsoleCollapsedBar: View {
             HStack(spacing: 8) {
                 Image(systemName: "terminal")
                     .foregroundStyle(theme.accent)
-                Text("Terminal")
+                Text(strings.terminal)
                     .font(
                         .system(size: 14, weight: .heavy, design: .monospaced)
                     )
@@ -533,9 +553,10 @@ struct ConsoleCollapsedBar: View {
 
 struct SaveToast: View {
     let theme: EditorTheme
+    let strings: AppStrings
 
     var body: some View {
-        Label("Saved", systemImage: "checkmark.circle.fill")
+        Label(strings.saved, systemImage: "checkmark.circle.fill")
             .font(.system(size: 13, weight: .heavy, design: .monospaced))
             .padding(.horizontal, 14)
             .frame(height: 40)
@@ -571,10 +592,10 @@ struct ConsoleLine: View {
 }
 
 extension LintSeverity {
-    var title: String {
+    func title(strings: AppStrings) -> String {
         switch self {
-        case .error: "Error"
-        case .warning: "Warning"
+        case .error: strings.error
+        case .warning: strings.warning
         }
     }
 }

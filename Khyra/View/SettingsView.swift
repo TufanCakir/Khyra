@@ -9,6 +9,12 @@ import SwiftUI
 
 struct SettingsView: View {
     let model: EditorModel
+    @Environment(\.openURL) private var openURL
+
+    private let appStoreReviewURL = URL(
+        string:
+            "itms-apps://itunes.apple.com/app/id6757344224?action=write-review"
+    )
 
     private var strings: AppStrings {
         model.appStrings
@@ -92,6 +98,24 @@ struct SettingsView: View {
                 }
 
                 settingsSection(
+                    title: strings.support,
+                    systemImage: "star.bubble"
+                ) {
+                    Button {
+                        openAppStoreReview()
+                    } label: {
+                        SettingsRow(
+                            title: strings.rateApp,
+                            value: strings.rateAppSubtitle,
+                            systemImage: "star.fill",
+                            showsChevron: true,
+                            theme: model.selectedTheme
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                settingsSection(
                     title: strings.appInfo,
                     systemImage: "app.badge"
                 ) {
@@ -143,6 +167,11 @@ struct SettingsView: View {
                     .stroke(model.selectedTheme.border, lineWidth: 1)
             )
         }
+    }
+
+    private func openAppStoreReview() {
+        guard let appStoreReviewURL else { return }
+        openURL(appStoreReviewURL)
     }
 }
 

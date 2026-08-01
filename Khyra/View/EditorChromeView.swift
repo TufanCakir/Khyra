@@ -134,6 +134,7 @@ struct EditorHeaderView: View {
     let issueCount: Int
     let lineCount: Int
     let theme: EditorTheme
+    let strings: AppStrings
 
     private var issueIconName: String {
         issueCount == 0 ? "checkmark.circle" : "exclamationmark.triangle"
@@ -146,8 +147,11 @@ struct EditorHeaderView: View {
             Text(language.fileExtension)
                 .font(.system(size: 13, weight: .bold, design: .monospaced))
             Spacer()
-            Label("\(lineCount) Zeilen", systemImage: "number")
-            Label("\(issueCount) Fehler", systemImage: issueIconName)
+            Label("\(lineCount) \(strings.lines)", systemImage: "number")
+            Label(
+                "\(issueCount) \(strings.issueCount)",
+                systemImage: issueIconName
+            )
         }
         .font(.caption.weight(.bold))
         .foregroundStyle(theme.secondaryText)

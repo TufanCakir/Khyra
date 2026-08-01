@@ -5,11 +5,13 @@
 //  Created by Tufan Cakir on 31.07.26.
 //
 
+import StoreKit
 import SwiftUI
 
 struct WelcomeView: View {
     let model: EditorModel
     let navigate: (AppRoute) -> Void
+    @Environment(\.requestReview) private var requestReview
     @State private var library = ProjectLibraryViewModel()
     @State private var activeModal: WelcomeModal?
     @State private var selectedTemplate: ProjectTemplate?
@@ -41,6 +43,7 @@ struct WelcomeView: View {
                         library.reload()
                         activeModal = nil
                         navigate(.editor)
+                        requestReviewAfterFirstProjectCreation()
                     },
                     onClose: {
                         activeModal = nil
@@ -143,6 +146,17 @@ struct WelcomeView: View {
     private var strings: AppStrings {
         model.appStrings
     }
+
+    private func requestReviewAfterFirstProjectCreation() {
+        guard model.shouldRequestReviewAfterFirstProjectCreation() else {
+            return
+        }
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(650))
+            requestReview()
+        }
+    }
 }
 
 enum WelcomeModal {
@@ -232,13 +246,13 @@ struct ProjectSetupModal: View {
 
     private var validationMessage: String? {
         if projectName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return "Project name is required."
+            return strings.projectNameRequired
         }
         if normalizedIdentifier.isEmpty {
-            return "Project ID is required."
+            return strings.projectIDRequired
         }
         if identifierExists {
-            return "Project ID already exists."
+            return strings.projectIDExists
         }
         return nil
     }
@@ -248,23 +262,24 @@ struct ProjectSetupModal: View {
     }
 
     var body: some View {
-        ThemedModal(title: "Project Setup", theme: theme, onClose: onClose) {
+        ThemedModal(title: strings.projectSetup, theme: theme, onClose: onClose)
+        {
             VStack(alignment: .leading, spacing: 12) {
                 setupHeader
 
                 setupTextField(
-                    title: "Project Name",
+                    title: strings.projectName,
                     text: $projectName,
                     systemImage: "textformat"
                 )
 
                 setupTextField(
-                    title: "Project ID",
+                    title: strings.projectID,
                     text: $projectIdentifier,
                     systemImage: "number"
                 )
 
-                Picker("Language", selection: $selectedLanguageID) {
+                Picker(strings.language, selection: $selectedLanguageID) {
                     ForEach(model.languageStore.languages) { language in
                         Text(language.name).tag(language.id)
                     }
@@ -272,8 +287,8 @@ struct ProjectSetupModal: View {
                 .pickerStyle(.navigationLink)
                 .tint(theme.accent)
 
-                Picker("Framework", selection: $selectedFrameworkID) {
-                    Text("None").tag("none")
+                Picker(strings.framework, selection: $selectedFrameworkID) {
+                    Text(strings.none).tag("none")
                     ForEach(availableFrameworks) { framework in
                         Text(framework.name).tag(framework.id)
                     }
@@ -282,7 +297,7 @@ struct ProjectSetupModal: View {
                 .tint(theme.accent)
 
                 Toggle(isOn: $includeReadme) {
-                    Label("Add README.md", systemImage: "doc.richtext")
+                    Label(strings.addReadme, systemImage: "doc.richtext")
                         .font(
                             .system(
                                 size: 13,
@@ -320,7 +335,7 @@ struct ProjectSetupModal: View {
 
                 HStack(spacing: 10) {
                     Button(action: onClose) {
-                        Label("Cancel", systemImage: "xmark")
+                        Label(strings.cancel, systemImage: "xmark")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.plain)
@@ -332,7 +347,7 @@ struct ProjectSetupModal: View {
                     )
 
                     Button(action: createProject) {
-                        Label("Create", systemImage: "checkmark")
+                        Label(strings.create, systemImage: "checkmark")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.plain)
@@ -378,6 +393,10 @@ struct ProjectSetupModal: View {
                     .foregroundStyle(theme.secondaryText)
             }
         }
+    }
+
+    private var strings: AppStrings {
+        model.appStrings
     }
 
     private func setupTextField(
@@ -452,12 +471,16 @@ struct ProjectPickerModal: View {
     let onClose: () -> Void
 
     var body: some View {
-        ThemedModal(title: "Projects", theme: theme, onClose: onClose) {
+        ThemedModal(
+            title: model.appStrings.projects,
+            theme: theme,
+            onClose: onClose
+        ) {
             if library.projects.isEmpty {
                 ContentUnavailableView(
-                    "No Projects",
+                    model.appStrings.noProjects,
                     systemImage: "folder",
-                    description: Text("Save a project first.")
+                    description: Text(model.appStrings.saveProjectFirst)
                 )
                 .foregroundStyle(theme.secondaryText)
                 .frame(height: 220)
@@ -468,6 +491,7 @@ struct ProjectPickerModal: View {
                             ProjectLibraryRow(
                                 project: project,
                                 theme: theme,
+                                strings: model.appStrings,
                                 onOpen: {
                                     model.loadProject(project)
                                     onOpen()
@@ -491,6 +515,7 @@ struct ProjectPickerModal: View {
 struct ProjectLibraryRow: View {
     let project: SavedProject
     let theme: EditorTheme
+    let strings: AppStrings
     let onOpen: () -> Void
     let onRename: (String) -> Void
     let onDelete: () -> Void
@@ -512,7 +537,7 @@ struct ProjectLibraryRow: View {
                                     design: .monospaced
                                 )
                             )
-                        Text("\(project.projectItems.count) items")
+                        Text("\(project.projectItems.count) \(strings.items)")
                             .font(.caption)
                             .foregroundStyle(theme.secondaryText)
                         Text(project.projectIdentifier)
@@ -556,14 +581,14 @@ struct ProjectLibraryRow: View {
             RoundedRectangle(cornerRadius: 8)
                 .stroke(theme.border, lineWidth: 1)
         )
-        .alert("Rename Project", isPresented: $showRenamePrompt) {
-            TextField("Project name", text: $renamedProjectName)
+        .alert(strings.renameProject, isPresented: $showRenamePrompt) {
+            TextField(strings.projectName, text: $renamedProjectName)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-            Button("Save") {
+            Button(strings.save) {
                 onRename(renamedProjectName)
             }
-            Button("Cancel", role: .cancel) {}
+            Button(strings.cancel, role: .cancel) {}
         }
     }
 }

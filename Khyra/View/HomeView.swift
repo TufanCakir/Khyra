@@ -50,6 +50,7 @@ struct HomeView: View {
                 if model.showNavigator {
                     ProjectNavigatorView(
                         model: model,
+                        strings: model.appStrings,
                         onCreateSnippet: openNewSnippetEditor,
                         onEditSnippet: openSnippetEditor
                     )
@@ -68,7 +69,8 @@ struct HomeView: View {
                         language: model.selectedLanguage,
                         issueCount: model.issues.count,
                         lineCount: model.lineCount,
-                        theme: model.selectedTheme
+                        theme: model.selectedTheme,
+                        strings: model.appStrings
                     )
                     SuggestionsBarView(
                         suggestions: model.suggestions(),
@@ -87,6 +89,7 @@ struct HomeView: View {
                         ConsoleView(
                             issues: model.issues,
                             theme: model.selectedTheme,
+                            strings: model.appStrings,
                             versions: model.codeVersions,
                             onToggle: {
                                 withAnimation(.snappy) {
@@ -119,7 +122,10 @@ struct HomeView: View {
                             .move(edge: .bottom).combined(with: .opacity)
                         )
                     } else {
-                        ConsoleCollapsedBar(theme: model.selectedTheme) {
+                        ConsoleCollapsedBar(
+                            theme: model.selectedTheme,
+                            strings: model.appStrings
+                        ) {
                             withAnimation(.snappy) {
                                 model.showConsole.toggle()
                             }
@@ -131,8 +137,11 @@ struct HomeView: View {
             if showSavedToast {
                 VStack {
                     Spacer()
-                    SaveToast(theme: model.selectedTheme)
-                        .padding(.bottom, 92)
+                    SaveToast(
+                        theme: model.selectedTheme,
+                        strings: model.appStrings
+                    )
+                    .padding(.bottom, 92)
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
@@ -153,6 +162,7 @@ struct HomeView: View {
                         $0.id == snippetDraft?.languageID
                     } ?? model.selectedLanguage,
                     theme: model.selectedTheme,
+                    strings: model.appStrings,
                     onSave: saveSnippetDraft,
                     onClose: { snippetDraft = nil }
                 )
@@ -162,6 +172,7 @@ struct HomeView: View {
                 CleanCodeConfirmationModal(
                     plan: model.cleanCodePlan,
                     theme: model.selectedTheme,
+                    strings: model.appStrings,
                     onConfirm: {
                         model.cleanCodeRefactor()
                         showCleanCodeConfirmation = false
@@ -189,7 +200,7 @@ struct HomeView: View {
                 } label: {
                     Image(systemName: "sidebar.left")
                 }
-                .accessibilityLabel("Projekt Navigator umschalten")
+                .accessibilityLabel(model.appStrings.toggleProjectNavigator)
             }
 
             ToolbarItem(placement: .topBarTrailing) {
@@ -198,7 +209,7 @@ struct HomeView: View {
                 } label: {
                     Image(systemName: "wand.and.stars")
                 }
-                .accessibilityLabel("Boilerplate einfuegen")
+                .accessibilityLabel(model.appStrings.insertBoilerplate)
             }
 
             ToolbarItem(placement: .topBarTrailing) {
@@ -208,14 +219,14 @@ struct HomeView: View {
                 } label: {
                     Image(systemName: "square.and.arrow.down")
                 }
-                .accessibilityLabel("Projekt speichern")
+                .accessibilityLabel(model.appStrings.saveProject)
             }
 
             ToolbarItem(placement: .topBarTrailing) {
                 ShareLink(item: model.activeCode.wrappedValue) {
                     Image(systemName: "square.and.arrow.up")
                 }
-                .accessibilityLabel("Code teilen")
+                .accessibilityLabel(model.appStrings.shareCode)
             }
 
             ToolbarItem(placement: .topBarTrailing) {
@@ -231,28 +242,35 @@ struct HomeView: View {
                     Button {
                         model.formatActiveDocument()
                     } label: {
-                        Label("Format", systemImage: "text.alignleft")
+                        Label(
+                            model.appStrings.format,
+                            systemImage: "text.alignleft"
+                        )
                     }
 
                     Button {
                         showCleanCodeConfirmation = true
                     } label: {
-                        Label("Clean Code", systemImage: "sparkles")
+                        Label(
+                            model.appStrings.cleanCode,
+                            systemImage: "sparkles"
+                        )
                     }
 
                     NavigationLink(value: AppRoute.preview) {
-                        Label("Preview", systemImage: "safari")
+                        Label(model.appStrings.preview, systemImage: "safari")
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
-                .accessibilityLabel("Mehr Aktionen")
+                .accessibilityLabel(model.appStrings.moreActions)
             }
         }
         .sheet(isPresented: $showConsoleSheet) {
             ConsoleView(
                 issues: model.issues,
                 theme: model.selectedTheme,
+                strings: model.appStrings,
                 versions: model.codeVersions,
                 onToggle: {
                     showConsoleSheet = false
@@ -355,6 +373,7 @@ struct HomeView: View {
 
 struct ProjectNavigatorView: View {
     let model: EditorModel
+    let strings: AppStrings
     let onCreateSnippet: () -> Void
     let onEditSnippet: (UserSnippet) -> Void
     @State private var newFileName = ""
@@ -368,7 +387,7 @@ struct ProjectNavigatorView: View {
             HStack(spacing: 8) {
                 Image(systemName: selectedTab.systemImage)
                     .foregroundStyle(model.selectedTheme.accent)
-                Text(selectedTab.title)
+                Text(selectedTab.title(strings: strings))
                     .font(
                         .system(size: 13, weight: .heavy, design: .monospaced)
                     )
@@ -382,7 +401,7 @@ struct ProjectNavigatorView: View {
                             }
                         }
 
-                        Button("New Folder") {
+                        Button(strings.newFolder) {
                             model.addFolder()
                         }
                     } label: {
@@ -414,7 +433,11 @@ struct ProjectNavigatorView: View {
             case .files:
                 filesList
             case .snippets:
-                SnippetLibraryPanel(model: model, onEditSnippet: onEditSnippet)
+                SnippetLibraryPanel(
+                    model: model,
+                    strings: strings,
+                    onEditSnippet: onEditSnippet
+                )
             }
         }
         .foregroundStyle(model.selectedTheme.primaryText)
@@ -424,33 +447,33 @@ struct ProjectNavigatorView: View {
                 .fill(model.selectedTheme.border)
                 .frame(width: 1)
         }
-        .alert("New File", isPresented: newFileAlertBinding) {
-            TextField("File name", text: $newFileName)
+        .alert(strings.newFile, isPresented: newFileAlertBinding) {
+            TextField(strings.fileName, text: $newFileName)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-            Button("Create") {
+            Button(strings.create) {
                 if let newFileLanguage {
                     model.addFile(language: newFileLanguage, name: newFileName)
                 }
                 self.newFileLanguage = nil
             }
-            Button("Cancel", role: .cancel) {
+            Button(strings.cancel, role: .cancel) {
                 newFileLanguage = nil
             }
         } message: {
-            Text("Choose a custom name for this file.")
+            Text(strings.chooseFileName)
         }
-        .alert("Rename", isPresented: renameAlertBinding) {
-            TextField("Name", text: $renameText)
+        .alert(strings.rename, isPresented: renameAlertBinding) {
+            TextField(strings.name, text: $renameText)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-            Button("Save") {
+            Button(strings.save) {
                 if let renameItem {
                     model.renameProjectItem(renameItem, to: renameText)
                 }
                 self.renameItem = nil
             }
-            Button("Cancel", role: .cancel) {
+            Button(strings.cancel, role: .cancel) {
                 renameItem = nil
             }
         }
@@ -460,9 +483,9 @@ struct ProjectNavigatorView: View {
         Group {
             if model.projectItems.isEmpty {
                 ContentUnavailableView(
-                    "No Files",
+                    strings.noFiles,
                     systemImage: "folder",
-                    description: Text("Tap + to create your own files.")
+                    description: Text(strings.noFilesHint)
                 )
                 .font(.caption)
                 .foregroundStyle(model.selectedTheme.secondaryText)
@@ -474,6 +497,7 @@ struct ProjectNavigatorView: View {
                             isSelected: model.selectedProjectItemID == item.id,
                             exportURL: model.exportURL(for: item),
                             theme: model.selectedTheme,
+                            strings: strings,
                             onSelect: { model.selectProjectItem(item) },
                             onRename: {
                                 renameItem = item
@@ -519,10 +543,10 @@ enum NavigatorTab: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    var title: String {
+    func title(strings: AppStrings) -> String {
         switch self {
-        case .files: "Files"
-        case .snippets: "Snippets"
+        case .files: strings.files
+        case .snippets: strings.snippets
         }
     }
 
@@ -548,6 +572,7 @@ struct SnippetEditorModal: View {
     @Binding var cursorLocation: Int
     let language: CodeLanguage
     let theme: EditorTheme
+    let strings: AppStrings
     let onSave: () -> Void
     let onClose: () -> Void
 
@@ -567,12 +592,12 @@ struct SnippetEditorModal: View {
     var body: some View {
         ThemedModal(
             title: draft.existingSnippet == nil
-                ? "New Snippet" : "Edit Snippet",
+                ? strings.newSnippet : strings.editSnippet,
             theme: theme,
             onClose: onClose
         ) {
             VStack(spacing: 12) {
-                TextField("Title", text: $draft.title)
+                TextField(strings.title, text: $draft.title)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .font(.system(size: 13, weight: .bold, design: .monospaced))
@@ -582,7 +607,7 @@ struct SnippetEditorModal: View {
                         in: RoundedRectangle(cornerRadius: 8)
                     )
 
-                TextField("Trigger", text: $draft.trigger)
+                TextField(strings.trigger, text: $draft.trigger)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .font(.system(size: 13, weight: .bold, design: .monospaced))
@@ -605,13 +630,13 @@ struct SnippetEditorModal: View {
                         .stroke(theme.border, lineWidth: 1)
                 )
 
-                ConsoleView(issues: issues, theme: theme)
+                ConsoleView(issues: issues, theme: theme, strings: strings)
                     .frame(height: 120)
                     .clipShape(RoundedRectangle(cornerRadius: 8))
 
                 HStack(spacing: 10) {
                     Button(action: onClose) {
-                        Label("Cancel", systemImage: "xmark")
+                        Label(strings.cancel, systemImage: "xmark")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.plain)
@@ -623,7 +648,7 @@ struct SnippetEditorModal: View {
                     )
 
                     Button(action: onSave) {
-                        Label("Save", systemImage: "checkmark")
+                        Label(strings.save, systemImage: "checkmark")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.plain)
@@ -641,7 +666,7 @@ struct SnippetEditorModal: View {
                 }
 
                 if hasErrors {
-                    Text("Fix snippet errors before saving.")
+                    Text(strings.fixSnippetErrors)
                         .font(.caption.weight(.bold))
                         .foregroundStyle(theme.error)
                 }
@@ -653,6 +678,7 @@ struct SnippetEditorModal: View {
 struct CleanCodeConfirmationModal: View {
     let plan: CleanCodePlan
     let theme: EditorTheme
+    let strings: AppStrings
     let onConfirm: () -> Void
     let onCancel: () -> Void
 
@@ -667,7 +693,8 @@ struct CleanCodeConfirmationModal: View {
                 VStack(alignment: .leading, spacing: 8) {
                     Label(
                         plan.extractsFiles
-                            ? "Project Manager changes" : "Planned change",
+                            ? strings.projectManagerChanges
+                            : strings.plannedChange,
                         systemImage: plan.extractsFiles
                             ? "folder.badge.gearshape" : "text.alignleft"
                     )
@@ -701,7 +728,7 @@ struct CleanCodeConfirmationModal: View {
 
                 HStack(spacing: 10) {
                     Button(action: onCancel) {
-                        Label("Cancel", systemImage: "xmark")
+                        Label(strings.cancel, systemImage: "xmark")
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.plain)
@@ -714,7 +741,8 @@ struct CleanCodeConfirmationModal: View {
 
                     Button(action: onConfirm) {
                         Label(
-                            plan.extractsFiles ? "Refactor" : "Format",
+                            plan.extractsFiles
+                                ? strings.refactor : strings.format,
                             systemImage: "sparkles"
                         )
                         .frame(maxWidth: .infinity)
@@ -751,6 +779,7 @@ struct CleanCodeConfirmationModal: View {
 
 struct SnippetLibraryPanel: View {
     let model: EditorModel
+    let strings: AppStrings
     let onEditSnippet: (UserSnippet) -> Void
 
     private var builtinSnippets: [CodeSnippet] {
@@ -771,23 +800,22 @@ struct SnippetLibraryPanel: View {
                 && userSnippets.isEmpty
             {
                 ContentUnavailableView(
-                    "No Snippets",
+                    strings.noSnippets,
                     systemImage: "tray",
-                    description: Text(
-                        "Add frameworks/snippets in code.json or save your current code."
-                    )
+                    description: Text(strings.noSnippetsHint)
                 )
                 .font(.caption)
                 .foregroundStyle(model.selectedTheme.secondaryText)
             } else {
                 List {
                     if !frameworks.isEmpty {
-                        Section("Frameworks") {
+                        Section(strings.frameworks) {
                             ForEach(frameworks) { framework in
                                 FrameworkRow(
                                     framework: framework,
                                     language: model.selectedLanguage,
                                     theme: model.selectedTheme,
+                                    strings: strings,
                                     onInsert: {
                                         model.replaceActiveCode(with: framework)
                                     }
@@ -808,12 +836,13 @@ struct SnippetLibraryPanel: View {
                     }
 
                     if !builtinSnippets.isEmpty {
-                        Section("Examples") {
+                        Section(strings.examples) {
                             ForEach(builtinSnippets) { snippet in
                                 BuiltinSnippetRow(
                                     snippet: snippet,
                                     language: model.selectedLanguage,
                                     theme: model.selectedTheme,
+                                    strings: strings,
                                     onInsert: {
                                         model.replaceActiveCode(with: snippet)
                                     }
@@ -834,12 +863,13 @@ struct SnippetLibraryPanel: View {
                     }
 
                     if !userSnippets.isEmpty {
-                        Section("Saved") {
+                        Section(strings.saved) {
                             ForEach(userSnippets) { snippet in
                                 SnippetRow(
                                     snippet: snippet,
                                     language: model.selectedLanguage,
                                     theme: model.selectedTheme,
+                                    strings: strings,
                                     onInsert: {
                                         model.replaceActiveCode(with: snippet)
                                     },
@@ -908,6 +938,7 @@ struct FrameworkRow: View {
     let framework: CodeFramework
     let language: CodeLanguage
     let theme: EditorTheme
+    let strings: AppStrings
     let onInsert: () -> Void
 
     private var supportText: String {
@@ -958,17 +989,17 @@ struct FrameworkRow: View {
             Button {
                 onInsert()
             } label: {
-                Label("Use Framework", systemImage: "text.insert")
+                Label(strings.useFramework, systemImage: "text.insert")
             }
             Button {
                 UIPasteboard.general.string = framework.boilerplateCode
             } label: {
-                Label("Copy", systemImage: "doc.on.doc")
+                Label(strings.copy, systemImage: "doc.on.doc")
             }
         }
         .swipeActions(edge: .leading) {
             Button(action: onInsert) {
-                Label("Use", systemImage: "shippingbox")
+                Label(strings.use, systemImage: "shippingbox")
             }
             .tint(.green)
         }
@@ -979,6 +1010,7 @@ struct BuiltinSnippetRow: View {
     let snippet: CodeSnippet
     let language: CodeLanguage
     let theme: EditorTheme
+    let strings: AppStrings
     let onInsert: () -> Void
 
     var body: some View {
@@ -1019,17 +1051,17 @@ struct BuiltinSnippetRow: View {
             Button {
                 onInsert()
             } label: {
-                Label("Insert", systemImage: "text.insert")
+                Label(strings.insert, systemImage: "text.insert")
             }
             Button {
                 UIPasteboard.general.string = snippet.insertText
             } label: {
-                Label("Copy", systemImage: "doc.on.doc")
+                Label(strings.copy, systemImage: "doc.on.doc")
             }
         }
         .swipeActions(edge: .leading) {
             Button(action: onInsert) {
-                Label("Insert", systemImage: "text.insert")
+                Label(strings.insert, systemImage: "text.insert")
             }
             .tint(.green)
         }
@@ -1040,6 +1072,7 @@ struct SnippetRow: View {
     let snippet: UserSnippet
     let language: CodeLanguage
     let theme: EditorTheme
+    let strings: AppStrings
     let onInsert: () -> Void
     let onEdit: () -> Void
     let onDelete: () -> Void
@@ -1070,7 +1103,7 @@ struct SnippetRow: View {
             } else if snippet.code.trimmingCharacters(
                 in: .whitespacesAndNewlines
             ).isEmpty {
-                Text("empty - uses boilerplate")
+                Text(strings.emptyUsesBoilerplate)
                     .font(
                         .system(
                             size: 10,
@@ -1103,33 +1136,33 @@ struct SnippetRow: View {
             Button {
                 onInsert()
             } label: {
-                Label("Insert", systemImage: "text.insert")
+                Label(strings.insert, systemImage: "text.insert")
             }
             Button {
                 UIPasteboard.general.string = snippet.code
             } label: {
-                Label("Copy", systemImage: "doc.on.doc")
+                Label(strings.copy, systemImage: "doc.on.doc")
             }
             Button(action: onEdit) {
-                Label("Edit", systemImage: "pencil")
+                Label(strings.edit, systemImage: "pencil")
             }
             Button(role: .destructive, action: onDelete) {
-                Label("Delete", systemImage: "trash")
+                Label(strings.delete, systemImage: "trash")
             }
         }
         .swipeActions(edge: .trailing) {
             Button(role: .destructive, action: onDelete) {
-                Label("Delete", systemImage: "trash")
+                Label(strings.delete, systemImage: "trash")
             }
         }
         .swipeActions(edge: .leading) {
             Button(action: onEdit) {
-                Label("Edit", systemImage: "pencil")
+                Label(strings.edit, systemImage: "pencil")
             }
             .tint(.blue)
 
             Button(action: onInsert) {
-                Label("Insert", systemImage: "text.insert")
+                Label(strings.insert, systemImage: "text.insert")
             }
             .tint(.green)
         }
@@ -1141,6 +1174,7 @@ struct ProjectItemRow: View {
     let isSelected: Bool
     let exportURL: URL?
     let theme: EditorTheme
+    let strings: AppStrings
     let onSelect: () -> Void
     let onRename: () -> Void
     let onDelete: () -> Void
@@ -1172,39 +1206,39 @@ struct ProjectItemRow: View {
             Button {
                 onRename()
             } label: {
-                Label("Rename", systemImage: "pencil")
+                Label(strings.rename, systemImage: "pencil")
             }
 
             if item.kind == .file, let exportURL {
                 ShareLink(item: exportURL) {
-                    Label("Export", systemImage: "square.and.arrow.up")
+                    Label(strings.export, systemImage: "square.and.arrow.up")
                 }
             }
 
             Button(role: .destructive) {
                 onDelete()
             } label: {
-                Label("Delete", systemImage: "trash")
+                Label(strings.delete, systemImage: "trash")
             }
         }
         .swipeActions(edge: .trailing) {
             Button(role: .destructive) {
                 onDelete()
             } label: {
-                Label("Delete", systemImage: "trash")
+                Label(strings.delete, systemImage: "trash")
             }
 
             Button {
                 onRename()
             } label: {
-                Label("Rename", systemImage: "pencil")
+                Label(strings.rename, systemImage: "pencil")
             }
             .tint(.blue)
         }
         .swipeActions(edge: .leading) {
             if item.kind == .file, let exportURL {
                 ShareLink(item: exportURL) {
-                    Label("Export", systemImage: "square.and.arrow.up")
+                    Label(strings.export, systemImage: "square.and.arrow.up")
                 }
                 .tint(.green)
             }

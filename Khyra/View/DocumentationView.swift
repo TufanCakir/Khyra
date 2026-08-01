@@ -22,30 +22,36 @@ struct DocumentationView: View {
         ["html", "css", "javascript"].contains(selectedLanguage.id)
     }
 
+    private var strings: AppStrings {
+        model.appStrings
+    }
+
     var body: some View {
         List {
-            Section("Sprache") {
-                Picker("Sprache", selection: $selectedLanguageID) {
+            Section(strings.language) {
+                Picker(strings.language, selection: $selectedLanguageID) {
                     ForEach(model.languageStore.languages) { language in
                         Text(language.name).tag(language.id)
                     }
                 }
 
-                LabeledContent("Datei", value: selectedLanguage.fileExtension)
                 LabeledContent(
-                    "Preview",
-                    value: supportsPreview ? "WebKit" : "Schreiben"
+                    strings.file,
+                    value: selectedLanguage.fileExtension
+                )
+                LabeledContent(
+                    strings.preview,
+                    value: supportsPreview ? "WebKit" : strings.writeOnly
                 )
             }
 
             if let boilerplate = selectedLanguage.boilerplateCode,
                 !boilerplate.isEmpty
             {
-                Section("Boilerplate") {
+                Section(strings.boilerplate) {
                     DocumentationCodeBlock(
-                        title: "Startcode",
-                        descriptionText:
-                            "Fuegt eine passende Grundstruktur fuer diese Sprache ein.",
+                        title: strings.starterCode,
+                        descriptionText: strings.starterCodeDescription,
                         code: boilerplate,
                         language: selectedLanguage,
                         explanation: CodeExplanation.make(
@@ -54,13 +60,14 @@ struct DocumentationView: View {
                         ),
                         copiedTitle: copiedTitle,
                         theme: model.selectedTheme,
+                        strings: strings,
                         onCopy: copy
                     )
                 }
             }
 
             if !selectedLanguage.referenceSections.isEmpty {
-                Section("Nachschlagen") {
+                Section(strings.reference) {
                     ForEach(selectedLanguage.referenceSections) { reference in
                         DocumentationCodeBlock(
                             title: reference.title,
@@ -73,6 +80,7 @@ struct DocumentationView: View {
                             ),
                             copiedTitle: copiedTitle,
                             theme: model.selectedTheme,
+                            strings: strings,
                             onCopy: copy
                         )
                     }
@@ -80,7 +88,7 @@ struct DocumentationView: View {
             }
 
             if !selectedLanguage.snippets.isEmpty {
-                Section("Snippets") {
+                Section(strings.snippets) {
                     ForEach(selectedLanguage.snippets) { snippet in
                         DocumentationCodeBlock(
                             title: snippet.title,
@@ -93,13 +101,14 @@ struct DocumentationView: View {
                             ),
                             copiedTitle: copiedTitle,
                             theme: model.selectedTheme,
+                            strings: strings,
                             onCopy: copy
                         )
                     }
                 }
             }
 
-            Section("Keywords") {
+            Section(strings.keywords) {
                 Text(selectedLanguage.keywords.joined(separator: "  "))
                     .font(
                         .system(
@@ -115,7 +124,7 @@ struct DocumentationView: View {
         }
         .scrollContentBackground(.hidden)
         .background(model.selectedTheme.background)
-        .navigationTitle("Dokumentation")
+        .navigationTitle(strings.documentation)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -124,7 +133,7 @@ struct DocumentationView: View {
                 } label: {
                     Image(systemName: "scope")
                 }
-                .accessibilityLabel("Aktive Sprache anzeigen")
+                .accessibilityLabel(strings.activeLanguage)
             }
         }
         .onAppear {
@@ -146,6 +155,7 @@ struct DocumentationCodeBlock: View {
     let explanation: CodeExplanation
     let copiedTitle: String?
     let theme: EditorTheme
+    let strings: AppStrings
     let onCopy: (String, String) -> Void
 
     private var wasCopied: Bool {
@@ -185,14 +195,14 @@ struct DocumentationCodeBlock: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(wasCopied ? theme.success : theme.accent)
-                    .accessibilityLabel("Code kopieren")
+                    .accessibilityLabel(strings.codeCopy)
 
                     ShareLink(item: code) {
                         Image(systemName: "square.and.arrow.up")
                     }
                     .buttonStyle(.plain)
                     .foregroundStyle(theme.accent)
-                    .accessibilityLabel("Code teilen")
+                    .accessibilityLabel(strings.codeShare)
                 }
             }
 
@@ -216,10 +226,11 @@ struct DocumentationCodeBlock: View {
                     code: code,
                     language: language,
                     explanation: explanation,
-                    theme: theme
+                    theme: theme,
+                    strings: strings
                 )
             } label: {
-                Label("Erklaeren", systemImage: "info.circle")
+                Label(strings.explain, systemImage: "info.circle")
                     .font(.system(size: 13, weight: .bold))
             }
             .foregroundStyle(theme.accent)
@@ -235,6 +246,7 @@ struct DocumentationDetailView: View {
     let language: CodeLanguage
     let explanation: CodeExplanation
     let theme: EditorTheme
+    let strings: AppStrings
 
     private var highlightedCode: AttributedString {
         let highlighted = SyntaxHighlighter.highlight(
@@ -260,12 +272,12 @@ struct DocumentationDetailView: View {
                 )
             }
 
-            Section("Was macht das?") {
+            Section(strings.whatDoesItDo) {
                 Text(explanation.summary)
                     .foregroundStyle(theme.primaryText)
             }
 
-            Section("Bausteine") {
+            Section(strings.buildingBlocks) {
                 ForEach(explanation.items) { item in
                     VStack(alignment: .leading, spacing: 4) {
                         Text(item.term)

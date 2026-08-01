@@ -57,7 +57,8 @@ struct PlaygroundView: View {
                     language: model.selectedLanguage,
                     issueCount: model.issues.count,
                     lineCount: model.lineCount,
-                    theme: model.selectedTheme
+                    theme: model.selectedTheme,
+                    strings: model.appStrings
                 )
 
                 SuggestionsBarView(
@@ -78,6 +79,7 @@ struct PlaygroundView: View {
                     ConsoleView(
                         issues: model.issues,
                         theme: model.selectedTheme,
+                        strings: model.appStrings,
                         versions: model.codeVersions,
                         onToggle: {
                             withAnimation(.snappy) {
@@ -107,7 +109,10 @@ struct PlaygroundView: View {
                     )
                     .frame(height: 190)
                 } else {
-                    ConsoleCollapsedBar(theme: model.selectedTheme) {
+                    ConsoleCollapsedBar(
+                        theme: model.selectedTheme,
+                        strings: model.appStrings
+                    ) {
                         withAnimation(.snappy) {
                             model.showConsole.toggle()
                         }
@@ -118,8 +123,11 @@ struct PlaygroundView: View {
             if showSavedToast {
                 VStack {
                     Spacer()
-                    SaveToast(theme: model.selectedTheme)
-                        .padding(.bottom, 92)
+                    SaveToast(
+                        theme: model.selectedTheme,
+                        strings: model.appStrings
+                    )
+                    .padding(.bottom, 92)
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
@@ -128,6 +136,7 @@ struct PlaygroundView: View {
             ConsoleView(
                 issues: model.issues,
                 theme: model.selectedTheme,
+                strings: model.appStrings,
                 versions: model.codeVersions,
                 onToggle: {
                     showConsoleSheet = false
@@ -174,14 +183,14 @@ struct PlaygroundView: View {
                 } label: {
                     Image(systemName: "wand.and.stars")
                 }
-                .accessibilityLabel("Boilerplate einfuegen")
+                .accessibilityLabel(model.appStrings.insertBoilerplate)
             }
 
             ToolbarItem(placement: .topBarTrailing) {
                 ShareLink(item: model.activeCode.wrappedValue) {
                     Image(systemName: "square.and.arrow.up")
                 }
-                .accessibilityLabel("Code teilen")
+                .accessibilityLabel(model.appStrings.shareCode)
             }
 
             ToolbarItem(placement: .topBarTrailing) {
@@ -197,19 +206,22 @@ struct PlaygroundView: View {
                     Button {
                         model.formatActiveDocument()
                     } label: {
-                        Label("Format", systemImage: "text.alignleft")
+                        Label(
+                            model.appStrings.format,
+                            systemImage: "text.alignleft"
+                        )
                     }
 
                     Button(role: .destructive) {
                         model.activeCode.wrappedValue = ""
                         model.cursorLocation = 0
                     } label: {
-                        Label("Clear", systemImage: "trash")
+                        Label(model.appStrings.delete, systemImage: "trash")
                     }
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
-                .accessibilityLabel("Mehr Aktionen")
+                .accessibilityLabel(model.appStrings.moreActions)
             }
         }
         .preferredColorScheme(model.selectedTheme.preferredScheme)
