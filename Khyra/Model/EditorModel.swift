@@ -38,6 +38,7 @@ final class EditorModel {
     var showConsole = true
     var showNavigator = false
     var cursorLocation = 0
+    var editorSelectionLength = 0
     var projectItems: [ProjectItem] = []
     var selectedProjectItemID: UUID?
     var projectName = "Untitled"
@@ -464,6 +465,52 @@ final class EditorModel {
             issue.line,
             in: activeCode.wrappedValue
         )
+        editorSelectionLength = 0
+    }
+
+    var selectedCode: String {
+        let source = activeCode.wrappedValue as NSString
+        let range = NSRange(
+            location: cursorLocation,
+            length: editorSelectionLength
+        )
+        guard range.location >= 0, NSMaxRange(range) <= source.length else {
+            return ""
+        }
+        return source.substring(with: range)
+    }
+
+    func replaceSelectedCode(with replacement: String, versionTitle: String) {
+        let source = activeCode.wrappedValue as NSString
+        let range = NSRange(
+            location: cursorLocation,
+            length: editorSelectionLength
+        )
+        guard range.location >= 0, NSMaxRange(range) <= source.length else {
+            return
+        }
+
+        saveCodeVersion(title: versionTitle)
+        let updated = source.replacingCharacters(in: range, with: replacement)
+        setActiveCode(updated)
+        cursorLocation = range.location
+        editorSelectionLength = replacement.utf16.count
+    }
+
+    @discardableResult
+    func applyQuickFix(for issue: LintIssue) -> Bool {
+        guard
+            let fixedCode = CodeLinter.applyingQuickFix(
+                issue,
+                to: activeCode.wrappedValue,
+                language: selectedLanguage
+            )
+        else { return false }
+
+        saveCodeVersion(title: "Vor Quick Fix · Zeile \(issue.line)")
+        setActiveCode(fixedCode)
+        jumpToIssue(issue)
+        return true
     }
 
     func exportText(for item: ProjectItem) -> String {
@@ -1002,7 +1049,15 @@ struct ProjectTemplate: Identifiable, Equatable {
     let files: [ProjectTemplateFile]
 
     static let all: [ProjectTemplate] = [
-        .blank, .webApp, .game, .extensionLike,
+        .blank,
+        .swiftBasics,
+        .swiftUIApp,
+        .swiftUINavigation,
+        .swiftDataApp,
+        .foundationModelsApp,
+        .webApp,
+        .game,
+        .extensionLike,
     ]
 
     static func catalog(from languageStore: LanguageStore) -> [ProjectTemplate]

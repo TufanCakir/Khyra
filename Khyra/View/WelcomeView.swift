@@ -83,62 +83,92 @@ struct WelcomeView: View {
     }
 
     private var content: some View {
-        VStack(spacing: 0) {
-            Spacer()
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(spacing: 28) {
+                    Spacer(minLength: 24)
 
-            VStack(spacing: 18) {
-                Image(.khyraLogo)
-                    .resizable()
-                    .scaledToFit()
+                    VStack(spacing: 16) {
+                        Image(.khyraLogo)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(
+                                maxWidth: min(
+                                    geometry.size.width * 0.55,
+                                    220
+                                )
+                            )
+                            .accessibilityHidden(true)
 
-                Text(strings.welcomeTitle)
-                    .font(
-                        .system(size: 30, weight: .heavy, design: .monospaced)
-                    )
-                    .multilineTextAlignment(.center)
+                        VStack(spacing: 8) {
+                            Text(strings.welcomeTitle)
+                                .font(
+                                    .system(
+                                        .largeTitle,
+                                        design: .rounded,
+                                        weight: .bold
+                                    )
+                                )
+                                .multilineTextAlignment(.center)
 
-                Text(strings.welcomeSubtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(model.selectedTheme.secondaryText)
-                    .multilineTextAlignment(.center)
-                    .fixedSize(horizontal: false, vertical: true)
+                            Text(strings.welcomeSubtitle)
+                                .font(.subheadline)
+                                .foregroundStyle(
+                                    model.selectedTheme.secondaryText
+                                )
+                                .multilineTextAlignment(.center)
+                                .fixedSize(
+                                    horizontal: false,
+                                    vertical: true
+                                )
+                        }
+                    }
+                    .frame(maxWidth: .infinity)
+
+                    VStack(spacing: 12) {
+                        Button {
+                            activeModal = .templates
+                        } label: {
+                            Text(strings.newProject)
+                                .fontWeight(.semibold)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+
+                        Button {
+                            library.reload()
+                            activeModal = .projects
+                        } label: {
+                            Text(strings.openProject)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.large)
+
+                        Button {
+                            activeModal = .playgroundTemplates
+                        } label: {
+                            Text(strings.playground)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.large)
+                    }
+                    .tint(model.selectedTheme.accent)
+                    .frame(maxWidth: 380)
+
+                    Spacer(minLength: 24)
+                }
+                .padding(.horizontal, 24)
+                .padding(.vertical, 32)
+                .frame(
+                    maxWidth: .infinity,
+                    minHeight: geometry.size.height
+                )
             }
-            .frame(maxWidth: .infinity)
-
-            VStack(spacing: 10) {
-                ThemedActionButton(
-                    title: strings.newProject,
-                    systemImage: "folder.badge.plus",
-                    theme: model.selectedTheme
-                ) {
-                    activeModal = .templates
-                }
-
-                ThemedActionButton(
-                    title: strings.openProject,
-                    systemImage: "folder",
-                    theme: model.selectedTheme
-                ) {
-                    library.reload()
-                    activeModal = .projects
-                }
-
-                ThemedActionButton(
-                    title: strings.playground,
-                    systemImage: "play.square",
-                    theme: model.selectedTheme
-                ) {
-                    activeModal = .playgroundTemplates
-                }
-            }
-            .frame(maxWidth: 360)
-            .padding(.top, 18)
-
-            Spacer()
+            .scrollBounceBehavior(.basedOnSize)
         }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 32)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
         .background(model.selectedTheme.background)
         .foregroundStyle(model.selectedTheme.primaryText)
     }
@@ -404,24 +434,35 @@ struct ProjectSetupModal: View {
         text: Binding<String>,
         systemImage: String
     ) -> some View {
-        HStack(spacing: 10) {
-            Image(systemName: systemImage)
-                .foregroundStyle(theme.accent)
-                .frame(width: 20)
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(theme.secondaryText)
+
             TextField(title, text: text)
+                .font(.body)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
-                .font(.system(size: 13, weight: .heavy, design: .monospaced))
+                .padding(14)
+                .background(
+                    theme.controlBackground,
+                    in: RoundedRectangle(cornerRadius: 14)
+                )
+                .overlay {
+                    RoundedRectangle(cornerRadius: 14)
+                        .strokeBorder(
+                            theme.border.opacity(0.6),
+                            lineWidth: 1
+                        )
+                }
         }
-        .padding(10)
-        .background(
-            theme.controlBackground,
-            in: RoundedRectangle(cornerRadius: 8)
-        )
     }
 
     private func createProject() {
         guard canCreate else { return }
+
+        print("1 - Create gestartet")
+
         model.createProject(
             template: template,
             name: projectName,
@@ -431,8 +472,16 @@ struct ProjectSetupModal: View {
                 ? nil : selectedFrameworkID,
             includeReadme: includeReadme
         )
+
+        print("2 - Projekt erstellt")
+
         model.saveProject()
+
+        print("3 - Projekt gespeichert")
+
         onCreate()
+
+        print("4 - onCreate abgeschlossen")
     }
 
     private static func identifier(from value: String) -> String {

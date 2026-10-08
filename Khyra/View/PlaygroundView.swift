@@ -13,6 +13,7 @@ struct PlaygroundView: View {
     @State private var didLoadTemplate = false
     @State private var showSavedToast = false
     @State private var showConsoleSheet = false
+    @State private var editorFontSize: CGFloat = 15
 
     init(template: ProjectTemplate? = nil) {
         self.template = template
@@ -37,6 +38,13 @@ struct PlaygroundView: View {
         Binding(
             get: { model.cursorLocation },
             set: { model.cursorLocation = $0 }
+        )
+    }
+
+    private var selectionLength: Binding<Int> {
+        Binding(
+            get: { model.editorSelectionLength },
+            set: { model.editorSelectionLength = $0 }
         )
     }
 
@@ -70,8 +78,12 @@ struct PlaygroundView: View {
                 CodeEditorView(
                     text: model.activeCode,
                     cursorLocation: cursorLocation,
+                    selectionLength: selectionLength,
                     language: model.selectedLanguage,
-                    theme: model.selectedTheme
+                    theme: model.selectedTheme,
+                    wrapsLongLines: true,
+                    fontSize: $editorFontSize,
+                    onFocusChange: { _ in }
                 )
                 .background(model.selectedTheme.editorBackground)
 

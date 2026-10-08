@@ -51,46 +51,53 @@ struct ThemedModal<Content: View>: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.48)
+            Color.black.opacity(0.42)
                 .ignoresSafeArea()
                 .onTapGesture(perform: onClose)
 
             VStack(spacing: 0) {
-                HStack(spacing: 10) {
+                HStack(spacing: 12) {
                     Text(title)
-                        .font(
-                            .system(
-                                size: 18,
-                                weight: .heavy,
-                                design: .monospaced
-                            )
-                        )
-                    Spacer()
+                        .font(.headline)
+                        .lineLimit(1)
+
+                    Spacer(minLength: 8)
+
                     Button(action: onClose) {
                         Image(systemName: "xmark")
-                            .font(.system(size: 14, weight: .heavy))
-                            .frame(width: 34, height: 34)
+                            .font(.subheadline.weight(.semibold))
+                            .frame(width: 28, height: 28)
                     }
                     .buttonStyle(.plain)
-                    .foregroundStyle(theme.accent)
+                    .accessibilityLabel("Close")
                 }
-                .padding(16)
-                .background(theme.headerBackground)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+
+                Divider()
+                    .overlay(theme.border)
 
                 content()
-                    .padding(16)
+                    .padding(14)
             }
-            .frame(maxWidth: 360)
+            .frame(maxWidth: 340)
             .background(
                 theme.panelBackground,
-                in: RoundedRectangle(cornerRadius: 8)
+                in: RoundedRectangle(
+                    cornerRadius: 18,
+                    style: .continuous
+                )
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(theme.border, lineWidth: 1)
-            )
-            .padding(20)
+            .overlay {
+                RoundedRectangle(
+                    cornerRadius: 18,
+                    style: .continuous
+                )
+                .strokeBorder(theme.border, lineWidth: 1)
+            }
+            .padding(16)
         }
         .foregroundStyle(theme.primaryText)
+        .tint(theme.accent)
     }
 }

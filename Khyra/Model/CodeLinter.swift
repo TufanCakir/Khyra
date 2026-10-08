@@ -158,6 +158,51 @@ enum CodeLinter {
         }
     }
 
+    static func applyingQuickFix(
+        _ issue: LintIssue,
+        to source: String,
+        language: CodeLanguage
+    ) -> String? {
+        var lines = source.components(separatedBy: .newlines)
+        guard !lines.isEmpty else { return nil }
+        let index = min(max(issue.line - 1, 0), lines.count - 1)
+
+        if issue.message.contains("CSS declaration should end") {
+            lines[index] =
+                lines[index].trimmingCharacters(in: .whitespacesAndNewlines)
+                + ";"
+            return lines.joined(separator: "\n")
+        }
+        if issue.message.contains("Avoid 'var'") {
+            lines[index] = lines[index].replacingOccurrences(
+                of: "var ",
+                with: "let ",
+                options: .anchored
+            )
+            return lines.joined(separator: "\n")
+        }
+        if let token = missingToken(in: issue.message) {
+            lines[index].append(token)
+            return lines.joined(separator: "\n")
+        }
+        if language.id == "html",
+            let start = issue.message.range(of: "Missing closing tag </"),
+            let end = issue.message[start.upperBound...].firstIndex(of: ">")
+        {
+            let name = issue.message[start.upperBound..<end]
+            lines[index].append("</\(name)>")
+            return lines.joined(separator: "\n")
+        }
+        return nil
+    }
+
+    private static func missingToken(in message: String) -> String? {
+        guard message.hasPrefix("Missing closing '") else { return nil }
+        let remainder = message.dropFirst("Missing closing '".count)
+        guard let quote = remainder.firstIndex(of: "'") else { return nil }
+        return String(remainder[..<quote])
+    }
+
     private static func lineOfLastOccurrence(
         _ character: Character,
         in source: String
@@ -173,10 +218,11 @@ enum CodeLinter {
 }
 
 struct LintIssue: Identifiable, Equatable {
-    let id = UUID()
     let line: Int
     let severity: LintSeverity
     let message: String
+
+    var id: String { "\(line)-\(severity)-\(message)" }
 }
 
 enum LintSeverity: Equatable {

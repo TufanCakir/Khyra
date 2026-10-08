@@ -34,6 +34,7 @@ struct ConsoleView: View {
     let theme: EditorTheme
     let strings: AppStrings
     var versions: [CodeVersion] = []
+    var currentCode = ""
     var onToggle: (() -> Void)? = nil
     var onSaveVersion: ((String) -> Void)? = nil
     var onRestoreVersion: ((CodeVersion) -> Void)? = nil
@@ -155,8 +156,9 @@ struct ConsoleView: View {
             Text(strings.saveVersionMessage)
         }
         .sheet(item: $previewVersion) { version in
-            CodeVersionPreviewSheet(
+            CodeVersionComparisonView(
                 version: version,
+                currentCode: currentCode,
                 language: languageForVersion?(version)
                     ?? CodeLanguage.htmlFallback,
                 theme: theme,

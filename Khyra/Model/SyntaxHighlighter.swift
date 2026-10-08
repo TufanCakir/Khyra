@@ -12,14 +12,15 @@ enum SyntaxHighlighter {
     static func highlight(
         _ source: String,
         language: CodeLanguage,
-        theme: EditorTheme
+        theme: EditorTheme,
+        fontSize: CGFloat = 15
     ) -> NSAttributedString {
         let text = source as NSString
         let attributed = NSMutableAttributedString(
             string: source,
             attributes: [
                 .font: UIFont.monospacedSystemFont(
-                    ofSize: 15,
+                    ofSize: fontSize,
                     weight: .regular
                 ),
                 .foregroundColor: UIColor(theme.codeText),

@@ -9,6 +9,7 @@ import SwiftUI
 
 struct SettingsView: View {
     let model: EditorModel
+
     @Environment(\.openURL) private var openURL
 
     private let appStoreReviewURL = URL(
@@ -18,6 +19,10 @@ struct SettingsView: View {
 
     private var strings: AppStrings {
         model.appStrings
+    }
+
+    private var theme: EditorTheme {
+        model.selectedTheme
     }
 
     private var themeSelection: Binding<String> {
@@ -34,146 +39,180 @@ struct SettingsView: View {
         )
     }
 
-    private var selectedLanguageName: String {
-        model.appLanguageCode == "de" ? strings.german : strings.english
-    }
-
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                settingsSection(
-                    title: strings.appearance,
-                    systemImage: "paintpalette"
-                ) {
-                    Picker(selection: themeSelection) {
-                        ForEach(EditorTheme.all) { theme in
-                            Text(theme.name).tag(theme.id)
-                        }
-                    } label: {
-                        SettingsRow(
-                            title: strings.theme,
-                            value: model.selectedTheme.name,
-                            systemImage: "paintpalette",
-                            showsChevron: true,
-                            theme: model.selectedTheme
-                        )
-                    }
-                    .pickerStyle(.navigationLink)
-                    .tint(model.selectedTheme.accent)
-                }
-
-                settingsSection(title: strings.language, systemImage: "globe") {
-                    Picker(selection: languageSelection) {
-                        Text(strings.german).tag("de")
-                        Text(strings.english).tag("en")
-                    } label: {
-                        SettingsRow(
-                            title: strings.language,
-                            value: selectedLanguageName,
-                            systemImage: "globe",
-                            showsChevron: true,
-                            theme: model.selectedTheme
-                        )
-                    }
-                    .pickerStyle(.navigationLink)
-                    .tint(model.selectedTheme.accent)
-                }
-
-                settingsSection(
-                    title: strings.about,
-                    systemImage: "info.circle"
-                ) {
-                    NavigationLink {
-                        InfoView(model: model)
-                    } label: {
-                        SettingsRow(
-                            title: strings.infoTitle,
-                            value: strings.capabilities,
-                            systemImage: "book.closed",
-                            showsChevron: true,
-                            theme: model.selectedTheme
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                settingsSection(
-                    title: strings.support,
-                    systemImage: "star.bubble"
-                ) {
-                    Button {
-                        openAppStoreReview()
-                    } label: {
-                        SettingsRow(
-                            title: strings.rateApp,
-                            value: strings.rateAppSubtitle,
-                            systemImage: "star.fill",
-                            showsChevron: true,
-                            theme: model.selectedTheme
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                settingsSection(
-                    title: strings.appInfo,
-                    systemImage: "app.badge"
-                ) {
-                    SettingsRow(
-                        title: strings.version,
-                        value: AppBuildInfo.version,
-                        systemImage: "number",
-                        showsChevron: false,
-                        theme: model.selectedTheme
-                    )
-                    SettingsRow(
-                        title: strings.build,
-                        value: AppBuildInfo.build,
-                        systemImage: "hammer",
-                        showsChevron: false,
-                        theme: model.selectedTheme
-                    )
-                }
+            VStack(alignment: .leading, spacing: 24) {
+                appearanceSection
+                languageSection
+                aboutSection
+                supportSection
+                appInfoSection
             }
-            .padding(16)
+            .padding()
         }
-        .background(model.selectedTheme.background)
-        .foregroundStyle(model.selectedTheme.primaryText)
+        .background {
+            theme.background
+                .ignoresSafeArea()
+        }
+        .foregroundStyle(theme.primaryText)
+        .tint(theme.accent)
         .navigationTitle(strings.settings)
         .navigationBarTitleDisplayMode(.inline)
-        .preferredColorScheme(model.selectedTheme.preferredScheme)
+        .preferredColorScheme(theme.preferredScheme)
     }
 
-    private func settingsSection<Content: View>(
-        title: String,
-        systemImage: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Label(title, systemImage: systemImage)
-                .font(.system(size: 15, weight: .heavy, design: .monospaced))
-                .foregroundStyle(model.selectedTheme.accent)
+    // MARK: - Appearance
 
-            VStack(spacing: 8) {
-                content()
+    private var appearanceSection: some View {
+        settingsSection(strings.appearance) {
+            Picker(selection: themeSelection) {
+                ForEach(EditorTheme.all) { item in
+                    Text(item.name)
+                        .tag(item.id)
+                }
+            } label: {
+                SettingsRow(
+                    title: strings.theme,
+                    subtitle: theme.name,
+                    theme: theme
+                )
             }
-            .padding(12)
-            .background(
-                model.selectedTheme.panelBackground,
-                in: RoundedRectangle(cornerRadius: 8)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(model.selectedTheme.border, lineWidth: 1)
-            )
+            .pickerStyle(.menu)
         }
     }
 
+    // MARK: - Language
+
+    private var languageSection: some View {
+        settingsSection(strings.language) {
+            Picker(selection: languageSelection) {
+                Text(strings.german)
+                    .tag("de")
+
+                Text(strings.english)
+                    .tag("en")
+            } label: {
+                SettingsRow(
+                    title: strings.language,
+                    subtitle: model.appLanguageCode == "de"
+                        ? strings.german
+                        : strings.english,
+                    theme: theme
+                )
+            }
+            .pickerStyle(.menu)
+        }
+    }
+
+    // MARK: - About
+
+    private var aboutSection: some View {
+        settingsSection(strings.about) {
+            NavigationLink {
+                InfoView(model: model)
+            } label: {
+                SettingsRow(
+                    title: strings.infoTitle,
+                    subtitle: strings.capabilities,
+                    theme: theme
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    // MARK: - Support
+
+    private var supportSection: some View {
+        settingsSection(strings.support) {
+            Button {
+                openAppStoreReview()
+            } label: {
+                SettingsRow(
+                    title: strings.rateApp,
+                    subtitle: strings.rateAppSubtitle,
+                    theme: theme
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    // MARK: - App Information
+
+    private var appInfoSection: some View {
+        settingsSection(strings.appInfo) {
+            VStack(spacing: 24) {
+                LabeledContent(
+                    strings.version,
+                    value: AppBuildInfo.version
+                )
+
+                Divider()
+                    .overlay(theme.border)
+
+                LabeledContent(
+                    strings.build,
+                    value: AppBuildInfo.build
+                )
+            }
+            .font(.body)
+            .padding()
+        }
+    }
+
+    // MARK: - Section
+
+    private func settingsSection<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Text(title)
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(theme.secondaryText)
+
+            content()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    theme.panelBackground,
+                )
+        }
+    }
+
+    // MARK: - Actions
+
     private func openAppStoreReview() {
-        guard let appStoreReviewURL else { return }
+        guard let appStoreReviewURL else {
+            return
+        }
+
         openURL(appStoreReviewURL)
     }
 }
+
+// MARK: - Settings Row
+
+private struct SettingsRow: View {
+    let title: String
+    let subtitle: String
+    let theme: EditorTheme
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            Text(title)
+                .font(.body.weight(.medium))
+                .foregroundStyle(theme.primaryText)
+
+            Text(subtitle)
+                .font(.subheadline)
+                .foregroundStyle(theme.secondaryText)
+        }
+        .padding()
+    }
+}
+
+// MARK: - Info View
 
 struct InfoView: View {
     let model: EditorModel
@@ -182,109 +221,88 @@ struct InfoView: View {
         model.appStrings
     }
 
-    private var capabilities: [(String, String)] {
+    private var theme: EditorTheme {
+        model.selectedTheme
+    }
+
+    private var capabilities: [String] {
         [
-            ("chevron.left.forwardslash.chevron.right", strings.infoEditor),
-            ("folder", strings.infoProjects),
-            ("safari", strings.infoPreview),
-            ("book", strings.infoDocs),
-            ("play.square", strings.infoPlayground),
-            ("apple.logo", strings.infoNative),
+            strings.infoEditor,
+            strings.infoProjects,
+            strings.infoPreview,
+            strings.infoDocs,
+            strings.infoPlayground,
+            strings.infoNative,
         ]
     }
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 24) {
                 Text(strings.infoDescription)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(model.selectedTheme.secondaryText)
+                    .font(.body)
+                    .foregroundStyle(theme.secondaryText)
 
-                VStack(spacing: 10) {
-                    ForEach(capabilities, id: \.1) { item in
-                        HStack(alignment: .top, spacing: 12) {
-                            Image(systemName: item.0)
-                                .font(.system(size: 17, weight: .heavy))
-                                .foregroundStyle(model.selectedTheme.accent)
-                                .frame(width: 26)
-                            Text(item.1)
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(
-                                    model.selectedTheme.primaryText
-                                )
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(
+                        Array(capabilities.enumerated()),
+                        id: \.offset
+                    ) { index, capability in
+                        Text(capability)
+                            .font(.body)
+                            .foregroundStyle(theme.primaryText)
+                            .frame(
+                                maxWidth: .infinity,
+                                alignment: .leading
+                            )
+                            .padding(16)
+
+                        if index < capabilities.count - 1 {
+                            Divider()
+                                .overlay(theme.border)
+                                .padding(.leading, 16)
                         }
-                        .padding(12)
-                        .background(
-                            model.selectedTheme.panelBackground,
-                            in: RoundedRectangle(cornerRadius: 8)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(
-                                    model.selectedTheme.border,
-                                    lineWidth: 1
-                                )
-                        )
                     }
                 }
+                .background(
+                    theme.panelBackground,
+                    in: RoundedRectangle(
+                        cornerRadius: 16,
+                        style: .continuous
+                    )
+                )
             }
-            .padding(16)
+            .padding(20)
         }
-        .background(model.selectedTheme.background)
+        .background {
+            theme.background
+                .ignoresSafeArea()
+        }
         .navigationTitle(strings.infoTitle)
         .navigationBarTitleDisplayMode(.inline)
+        .foregroundStyle(theme.primaryText)
+        .tint(theme.accent)
+        .preferredColorScheme(theme.preferredScheme)
     }
 }
 
-struct SettingsRow: View {
-    let title: String
-    let value: String
-    let systemImage: String
-    let showsChevron: Bool
-    let theme: EditorTheme
-
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: systemImage)
-                .font(.system(size: 13, weight: .heavy))
-                .foregroundStyle(theme.accent)
-                .frame(width: 22)
-            VStack(alignment: .leading, spacing: 3) {
-                Text(title)
-                    .font(
-                        .system(size: 13, weight: .heavy, design: .monospaced)
-                    )
-                Text(value)
-                    .font(.caption)
-                    .foregroundStyle(theme.secondaryText)
-            }
-            Spacer(minLength: 0)
-            if showsChevron {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .heavy))
-                    .foregroundStyle(theme.secondaryText)
-            }
-        }
-        .padding(.horizontal, 12)
-        .frame(minHeight: 48)
-        .background(
-            theme.controlBackground,
-            in: RoundedRectangle(cornerRadius: 8)
-        )
-    }
-}
+// MARK: - Build Information
 
 enum AppBuildInfo {
     static var version: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
-            ?? "1.0"
+        Bundle.main.infoDictionary?[
+            "CFBundleShortVersionString"
+        ] as? String ?? "1.0"
     }
 
     static var build: String {
-        Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+        Bundle.main.infoDictionary?[
+            "CFBundleVersion"
+        ] as? String ?? "1"
     }
 }
+
+// MARK: - Preview
 
 #Preview {
     NavigationStack {

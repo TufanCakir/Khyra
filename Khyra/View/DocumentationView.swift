@@ -8,7 +8,7 @@
 import SwiftUI
 import UIKit
 
-struct DocumentationView: View {
+struct LegacyDocumentationView: View {
     let model: EditorModel
     @State private var selectedLanguageID = "html"
     @State private var copiedTitle: String?

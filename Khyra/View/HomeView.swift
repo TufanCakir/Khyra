@@ -12,9 +12,23 @@ struct HomeView: View {
     let model: EditorModel
     @State private var snippetDraft: SnippetEditorDraft?
     @State private var snippetCursorLocation = 0
+    @State private var snippetSelectionLength = 0
     @State private var showSavedToast = false
     @State private var showConsoleSheet = false
     @State private var showCleanCodeConfirmation = false
+    @State private var isEditorFocused = false
+    @State private var focusModeEnabled = false
+    @State private var wrapsLongLines = true
+    @State private var editorFontSize: CGFloat = 15
+    @State private var showFindReplace = false
+    @State private var showGoToLine = false
+    @State private var showRunPreview = false
+    @State private var showAISelection = false
+    @State private var selectedAIAction: EditorAIAction = .explain
+    @State private var showLayoutCustomization = false
+    @State private var workspacePanels = EditorWorkspacePanel.allCases
+    @State private var showsSuggestions = true
+    @State private var showsInlineDiagnostics = true
 
     init(model: EditorModel) {
         self.model = model
@@ -41,13 +55,21 @@ struct HomeView: View {
         )
     }
 
+    private var selectionLength: Binding<Int> {
+        Binding(
+            get: { model.editorSelectionLength },
+            set: { model.editorSelectionLength = $0 }
+        )
+    }
+
     var body: some View {
         ZStack {
             model.selectedTheme.background
                 .ignoresSafeArea()
 
             HStack(spacing: 0) {
-                if model.showNavigator {
+                if model.showNavigator && !(focusModeEnabled && isEditorFocused)
+                {
                     ProjectNavigatorView(
                         model: model,
                         strings: model.appStrings,
@@ -72,62 +94,87 @@ struct HomeView: View {
                         theme: model.selectedTheme,
                         strings: model.appStrings
                     )
-                    SuggestionsBarView(
-                        suggestions: model.suggestions(),
-                        theme: model.selectedTheme,
-                        onSelect: model.applySuggestion
-                    )
+
+                    if showsSuggestions {
+                        SuggestionsBarView(
+                            suggestions: model.suggestions(),
+                            theme: model.selectedTheme,
+                            onSelect: model.applySuggestion
+                        )
+                    }
+
                     CodeEditorView(
                         text: model.activeCode,
                         cursorLocation: cursorLocation,
+                        selectionLength: selectionLength,
                         language: model.selectedLanguage,
-                        theme: model.selectedTheme
+                        theme: model.selectedTheme,
+                        wrapsLongLines: wrapsLongLines,
+                        fontSize: $editorFontSize,
+                        issues: model.issues,
+                        onFocusChange: { isEditorFocused = $0 }
                     )
                     .background(model.selectedTheme.editorBackground)
 
-                    if model.showConsole {
-                        ConsoleView(
+                    if showsInlineDiagnostics {
+                        InlineDiagnosticsView(
                             issues: model.issues,
                             theme: model.selectedTheme,
-                            strings: model.appStrings,
-                            versions: model.codeVersions,
-                            onToggle: {
+                            isGerman: model.appLanguageCode == "de",
+                            onSelect: model.jumpToIssue,
+                            onQuickFix: { issue in
+                                if !model.applyQuickFix(for: issue) {
+                                    selectedAIAction = .repair
+                                    showAISelection = true
+                                }
+                            },
+                            onAIFix: { issue in
+                                model.jumpToIssue(issue)
+                                model.editorSelectionLength =
+                                    lineLength(for: issue.line)
+                                selectedAIAction = .repair
+                                showAISelection = true
+                            }
+                        )
+                    }
+
+                    if !(focusModeEnabled && isEditorFocused) {
+                        if model.showConsole {
+                            ConsoleView(
+                                issues: model.issues,
+                                theme: model.selectedTheme,
+                                strings: model.appStrings,
+                                versions: model.codeVersions,
+                                currentCode: model.activeCode.wrappedValue,
+                                onToggle: {
+                                    withAnimation(.snappy) {
+                                        model.showConsole.toggle()
+                                    }
+                                },
+                                onSaveVersion: { name in
+                                    model.saveCodeVersion(title: name)
+                                    showSavedFeedback()
+                                },
+                                onRestoreVersion: { version in
+                                    model.restoreCodeVersion(version)
+                                    showSavedFeedback()
+                                },
+                                onDeleteVersion: model.deleteCodeVersion,
+                                onIssueSelect: model.jumpToIssue,
+                                onOpenSheet: { showConsoleSheet = true },
+                                languageForVersion: { version in
+                                    model.language(for: version.languageID)
+                                }
+                            )
+                            .frame(height: 178)
+                        } else {
+                            ConsoleCollapsedBar(
+                                theme: model.selectedTheme,
+                                strings: model.appStrings
+                            ) {
                                 withAnimation(.snappy) {
                                     model.showConsole.toggle()
                                 }
-                            },
-                            onSaveVersion: { name in
-                                model.saveCodeVersion(title: name)
-                                showSavedFeedback()
-                            },
-                            onRestoreVersion: { version in
-                                model.restoreCodeVersion(version)
-                                showSavedFeedback()
-                            },
-                            onDeleteVersion: { version in
-                                model.deleteCodeVersion(version)
-                            },
-                            onIssueSelect: { issue in
-                                model.jumpToIssue(issue)
-                            },
-                            onOpenSheet: {
-                                showConsoleSheet = true
-                            },
-                            languageForVersion: { version in
-                                model.language(for: version.languageID)
-                            }
-                        )
-                        .frame(height: 178)
-                        .transition(
-                            .move(edge: .bottom).combined(with: .opacity)
-                        )
-                    } else {
-                        ConsoleCollapsedBar(
-                            theme: model.selectedTheme,
-                            strings: model.appStrings
-                        ) {
-                            withAnimation(.snappy) {
-                                model.showConsole.toggle()
                             }
                         }
                     }
@@ -158,6 +205,7 @@ struct HomeView: View {
                         set: { snippetDraft = $0 }
                     ),
                     cursorLocation: $snippetCursorLocation,
+                    selectionLength: $snippetSelectionLength,
                     language: model.languageStore.languages.first {
                         $0.id == snippetDraft?.languageID
                     } ?? model.selectedLanguage,
@@ -220,6 +268,7 @@ struct HomeView: View {
                     Image(systemName: "square.and.arrow.down")
                 }
                 .accessibilityLabel(model.appStrings.saveProject)
+                .keyboardShortcut("s", modifiers: .command)
             }
 
             ToolbarItem(placement: .topBarTrailing) {
@@ -231,13 +280,6 @@ struct HomeView: View {
 
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    Picker("Theme", selection: selectedThemeID) {
-                        ForEach(EditorTheme.all) { theme in
-                            Text(theme.name).tag(theme.id)
-                        }
-                    }
-
-                    Divider()
 
                     Button {
                         model.formatActiveDocument()
@@ -257,6 +299,80 @@ struct HomeView: View {
                         )
                     }
 
+                    Divider()
+
+                    Button {
+                        showFindReplace = true
+                    } label: {
+                        Label(
+                            model.appLanguageCode == "de"
+                                ? "Suchen & Ersetzen" : "Find & Replace",
+                            systemImage: "magnifyingglass"
+                        )
+                    }
+                    .keyboardShortcut("f", modifiers: .command)
+
+                    Button {
+                        showGoToLine = true
+                    } label: {
+                        Label(
+                            model.appLanguageCode == "de"
+                                ? "Gehe zu Zeile" : "Go to Line",
+                            systemImage: "arrow.right.to.line"
+                        )
+                    }
+                    .keyboardShortcut("l", modifiers: .command)
+
+                    Button {
+                        showRunPreview = true
+                    } label: {
+                        Label(
+                            model.appStrings.preview,
+                            systemImage: "play.fill"
+                        )
+                    }
+                    .keyboardShortcut(.return, modifiers: .command)
+
+                    Divider()
+
+                    Toggle(isOn: $wrapsLongLines) {
+                        Label(
+                            model.appLanguageCode == "de"
+                                ? "Lange Zeilen umbrechen" : "Wrap long lines",
+                            systemImage: "text.word.spacing"
+                        )
+                    }
+
+                    Toggle(isOn: $focusModeEnabled) {
+                        Label(
+                            model.appLanguageCode == "de"
+                                ? "Fokusmodus" : "Focus mode",
+                            systemImage: "viewfinder"
+                        )
+                    }
+
+                    Button {
+                        selectedAIAction = .explain
+                        showAISelection = true
+                    } label: {
+                        Label(
+                            model.appLanguageCode == "de"
+                                ? "Auswahl mit KI" : "AI for Selection",
+                            systemImage: "apple.intelligence"
+                        )
+                    }
+                    .disabled(model.editorSelectionLength == 0)
+
+                    Button {
+                        showLayoutCustomization = true
+                    } label: {
+                        Label(
+                            model.appLanguageCode == "de"
+                                ? "Layout bearbeiten" : "Edit Layout",
+                            systemImage: "rectangle.3.group"
+                        )
+                    }
+
                     NavigationLink(value: AppRoute.preview) {
                         Label(model.appStrings.preview, systemImage: "safari")
                     }
@@ -272,6 +388,7 @@ struct HomeView: View {
                 theme: model.selectedTheme,
                 strings: model.appStrings,
                 versions: model.codeVersions,
+                currentCode: model.activeCode.wrappedValue,
                 onToggle: {
                     showConsoleSheet = false
                 },
@@ -298,7 +415,61 @@ struct HomeView: View {
             .presentationBackground(model.selectedTheme.background)
             .preferredColorScheme(model.selectedTheme.preferredScheme)
         }
+        .sheet(isPresented: $showFindReplace) {
+            EditorSearchToolsView(
+                code: model.activeCode,
+                cursorLocation: cursorLocation,
+                selectionLength: selectionLength,
+                isGerman: model.appLanguageCode == "de"
+            )
+            .preferredColorScheme(model.selectedTheme.preferredScheme)
+        }
+        .sheet(isPresented: $showGoToLine) {
+            GoToLineView(
+                cursorLocation: cursorLocation,
+                selectionLength: selectionLength,
+                code: model.activeCode.wrappedValue,
+                isGerman: model.appLanguageCode == "de"
+            )
+            .preferredColorScheme(model.selectedTheme.preferredScheme)
+        }
+        .sheet(isPresented: $showRunPreview) {
+            NavigationStack {
+                WebPreviewScreen(model: model)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button(model.appStrings.cancel) {
+                                showRunPreview = false
+                            }
+                        }
+                    }
+            }
+            .preferredColorScheme(model.selectedTheme.preferredScheme)
+        }
+        .sheet(isPresented: $showAISelection) {
+            EditorAISelectionView(
+                model: model,
+                initialAction: selectedAIAction
+            )
+        }
+        .sheet(isPresented: $showLayoutCustomization) {
+            EditorLayoutCustomizationView(
+                panels: $workspacePanels,
+                showsSuggestions: $showsSuggestions,
+                showsDiagnostics: $showsInlineDiagnostics,
+                isGerman: model.appLanguageCode == "de"
+            )
+            .preferredColorScheme(model.selectedTheme.preferredScheme)
+        }
         .preferredColorScheme(model.selectedTheme.preferredScheme)
+    }
+
+    private func lineLength(for line: Int) -> Int {
+        let lines = model.activeCode.wrappedValue.components(
+            separatedBy: .newlines
+        )
+        guard lines.indices.contains(line - 1) else { return 0 }
+        return lines[line - 1].utf16.count
     }
 
     private func openNewSnippetEditor() {
@@ -570,6 +741,7 @@ struct SnippetEditorDraft: Identifiable, Equatable {
 struct SnippetEditorModal: View {
     @Binding var draft: SnippetEditorDraft
     @Binding var cursorLocation: Int
+    @Binding var selectionLength: Int
     let language: CodeLanguage
     let theme: EditorTheme
     let strings: AppStrings
@@ -620,8 +792,12 @@ struct SnippetEditorModal: View {
                 CodeEditorView(
                     text: $draft.code,
                     cursorLocation: $cursorLocation,
+                    selectionLength: $selectionLength,
                     language: language,
-                    theme: theme
+                    theme: theme,
+                    wrapsLongLines: true,
+                    fontSize: .constant(15),
+                    onFocusChange: { _ in }
                 )
                 .frame(height: 230)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
@@ -920,7 +1096,8 @@ struct SnippetCodePreview: View {
         let highlighted = SyntaxHighlighter.highlight(
             source,
             language: language,
-            theme: theme
+            theme: theme,
+            fontSize: 10
         )
         return (try? AttributedString(highlighted, including: \.uiKit))
             ?? AttributedString(source)
@@ -1246,21 +1423,49 @@ struct ProjectItemRow: View {
     }
 }
 
+private final class CodeTextView: UITextView {
+    var onToggleComment: (() -> Void)?
+
+    override var keyCommands: [UIKeyCommand]? {
+        let toggleComment = UIKeyCommand(
+            input: "/",
+            modifierFlags: .command,
+            action: #selector(toggleCommentCommand)
+        )
+        toggleComment.discoverabilityTitle = "Kommentar umschalten"
+        return (super.keyCommands ?? []) + [toggleComment]
+    }
+
+    @objc private func toggleCommentCommand() {
+        onToggleComment?()
+    }
+}
+
 struct CodeEditorView: UIViewRepresentable {
     @Binding var text: String
     @Binding var cursorLocation: Int
+    @Binding var selectionLength: Int
     let language: CodeLanguage
     let theme: EditorTheme
+    let wrapsLongLines: Bool
+    @Binding var fontSize: CGFloat
+    var issues: [LintIssue] = []
+    let onFocusChange: (Bool) -> Void
 
     func makeUIView(context: Context) -> UITextView {
-        let textView = UITextView()
+        let textView = CodeTextView()
         textView.delegate = context.coordinator
+        textView.onToggleComment = { [weak coordinator = context.coordinator] in
+            coordinator?.toggleCommentFromKeyboard()
+        }
         textView.autocorrectionType = .no
         textView.autocapitalizationType = .none
         textView.smartQuotesType = .no
         textView.smartDashesType = .no
         textView.keyboardType = .asciiCapable
+        textView.keyboardDismissMode = .interactive
         textView.alwaysBounceVertical = true
+        configureLineWrapping(for: textView)
         textView.textContainerInset = UIEdgeInsets(
             top: 18,
             left: 14,
@@ -1272,7 +1477,12 @@ struct CodeEditorView: UIViewRepresentable {
         textView.tintColor = UIColor(theme.accent)
         textView.isEditable = true
         textView.isSelectable = true
-        textView.font = .monospacedSystemFont(ofSize: 15, weight: .regular)
+        textView.font = .monospacedSystemFont(
+            ofSize: fontSize,
+            weight: .regular
+        )
+        context.coordinator.attachPinchGesture(to: textView)
+        context.coordinator.attachKeyboardToolbar(to: textView)
         applyHighlight(to: textView)
         return textView
     }
@@ -1281,22 +1491,32 @@ struct CodeEditorView: UIViewRepresentable {
         context.coordinator.parent = self
         textView.backgroundColor = UIColor(theme.editorBackground)
         textView.tintColor = UIColor(theme.accent)
+        textView.font = .monospacedSystemFont(
+            ofSize: fontSize,
+            weight: .regular
+        )
+        configureLineWrapping(for: textView)
+        context.coordinator.updateKeyboardToolbar(theme: theme)
 
         if textView.text != text
             || context.coordinator.lastLanguageID != language.id
             || context.coordinator.lastThemeID != theme.id
+            || context.coordinator.lastFontSize != fontSize
         {
             applyHighlight(to: textView)
             context.coordinator.lastLanguageID = language.id
             context.coordinator.lastThemeID = theme.id
+            context.coordinator.lastFontSize = fontSize
         }
-        if textView.selectedRange.location != cursorLocation
-            && cursorLocation <= textView.text.utf16.count
+        let requestedSelection = NSRange(
+            location: cursorLocation,
+            length: selectionLength
+        )
+        if textView.selectedRange != requestedSelection,
+            NSMaxRange(requestedSelection) <= textView.text.utf16.count
         {
-            textView.selectedRange = NSRange(
-                location: cursorLocation,
-                length: 0
-            )
+            textView.selectedRange = requestedSelection
+            textView.scrollRangeToVisible(requestedSelection)
         }
     }
 
@@ -1304,23 +1524,80 @@ struct CodeEditorView: UIViewRepresentable {
         Coordinator(parent: self)
     }
 
+    private func configureLineWrapping(for textView: UITextView) {
+        textView.textContainer.widthTracksTextView = wrapsLongLines
+        textView.alwaysBounceHorizontal = !wrapsLongLines
+        textView.showsHorizontalScrollIndicator = !wrapsLongLines
+        textView.textContainer.size = CGSize(
+            width: wrapsLongLines ? 0 : CGFloat.greatestFiniteMagnitude,
+            height: CGFloat.greatestFiniteMagnitude
+        )
+    }
+
     private func applyHighlight(to textView: UITextView) {
         let selectedRange = textView.selectedRange
         let contentOffset = textView.contentOffset
-        let highlighted = SyntaxHighlighter.highlight(
-            text,
-            language: language,
-            theme: theme
+        let highlighted = NSMutableAttributedString(
+            attributedString: SyntaxHighlighter.highlight(
+                text,
+                language: language,
+                theme: theme,
+                fontSize: fontSize
+            )
         )
+        applyIssueUnderlines(to: highlighted)
         textView.attributedText = highlighted
         textView.typingAttributes = [
-            .font: UIFont.monospacedSystemFont(ofSize: 15, weight: .regular),
+            .font: UIFont.monospacedSystemFont(
+                ofSize: fontSize,
+                weight: .regular
+            ),
             .foregroundColor: UIColor(theme.codeText),
         ]
         textView.selectedRange =
             selectedRange.location <= highlighted.length
             ? selectedRange : NSRange(location: highlighted.length, length: 0)
         textView.setContentOffset(contentOffset, animated: false)
+    }
+
+    private func applyIssueUnderlines(to attributed: NSMutableAttributedString)
+    {
+        let source = text as NSString
+        for issue in issues {
+            var location = 0
+            var currentLine = 1
+            while currentLine < issue.line && location < source.length {
+                let range = source.lineRange(
+                    for: NSRange(location: location, length: 0)
+                )
+                location = NSMaxRange(range)
+                currentLine += 1
+            }
+            guard currentLine == issue.line, location < source.length else {
+                continue
+            }
+            let lineRange = source.lineRange(
+                for: NSRange(location: location, length: 0)
+            )
+            let visibleLength = max(
+                0,
+                lineRange.length
+                    - (source.substring(with: lineRange).hasSuffix("\n")
+                        ? 1 : 0)
+            )
+            guard visibleLength > 0 else { continue }
+            attributed.addAttributes(
+                [
+                    .underlineStyle: NSUnderlineStyle.single.rawValue
+                        | NSUnderlineStyle.patternDot.rawValue,
+                    .underlineColor: UIColor(issue.severity.color(in: theme)),
+                ],
+                range: NSRange(
+                    location: lineRange.location,
+                    length: visibleLength
+                )
+            )
+        }
     }
 
     final class Coordinator: NSObject, UITextViewDelegate {
@@ -1333,16 +1610,625 @@ struct CodeEditorView: UIViewRepresentable {
         var parent: CodeEditorView
         var lastLanguageID: String
         var lastThemeID: String
+        var lastFontSize: CGFloat
+        private weak var textView: UITextView?
+        private weak var keyboardToolbar: UIToolbar?
 
         init(parent: CodeEditorView) {
             self.parent = parent
             self.lastLanguageID = parent.language.id
             self.lastThemeID = parent.theme.id
+            self.lastFontSize = parent.fontSize
+        }
+
+        func attachPinchGesture(to textView: UITextView) {
+            let pinch = UIPinchGestureRecognizer(
+                target: self,
+                action: #selector(handlePinch(_:))
+            )
+            textView.addGestureRecognizer(pinch)
+        }
+
+        @objc private func handlePinch(_ gesture: UIPinchGestureRecognizer) {
+            guard gesture.state == .changed || gesture.state == .ended,
+                let textView
+            else {
+                return
+            }
+
+            let newSize = min(
+                28,
+                max(11, parent.fontSize * gesture.scale)
+            )
+            parent.fontSize = newSize
+            lastFontSize = newSize
+            gesture.scale = 1
+            parent.applyHighlight(to: textView)
+        }
+
+        func attachKeyboardToolbar(to textView: UITextView) {
+            self.textView = textView
+
+            let toolbar = UIToolbar()
+            toolbar.sizeToFit()
+            toolbar.items = keyboardToolbarItems()
+
+            textView.inputAccessoryView = toolbar
+            keyboardToolbar = toolbar
+            updateKeyboardToolbar(theme: parent.theme)
+        }
+
+        private func keyboardToolbarItems() -> [UIBarButtonItem] {
+            [
+                barButton(
+                    systemImage: "keyboard.chevron.compact.down",
+                    accessibilityLabel: "Tastatur schließen",
+                    action: #selector(dismissKeyboard)
+                ),
+                flexibleSpace(),
+                barButton(
+                    systemImage: "arrow.left",
+                    accessibilityLabel: "Cursor nach links",
+                    action: #selector(moveCursorLeft)
+                ),
+                barButton(
+                    systemImage: "arrow.right",
+                    accessibilityLabel: "Cursor nach rechts",
+                    action: #selector(moveCursorRight)
+                ),
+                barButton(
+                    title: "⇤",
+                    accessibilityLabel: "Ausrücken",
+                    action: #selector(outdentSelection)
+                ),
+                barButton(
+                    title: "⇥",
+                    accessibilityLabel: "Einrücken",
+                    action: #selector(indentSelection)
+                ),
+                lineActionsMenuItem(),
+                symbolMenuItem(),
+                flexibleSpace(),
+                barButton(
+                    systemImage: "arrow.uturn.backward",
+                    accessibilityLabel: "Rückgängig",
+                    action: #selector(undo)
+                ),
+                barButton(
+                    systemImage: "arrow.uturn.forward",
+                    accessibilityLabel: "Wiederholen",
+                    action: #selector(redo)
+                ),
+            ]
+        }
+
+        func updateKeyboardToolbar(theme: EditorTheme) {
+            keyboardToolbar?.tintColor = UIColor(theme.accent)
+            keyboardToolbar?.barStyle =
+                theme.preferredScheme == .dark ? .black : .default
+        }
+
+        @objc private func dismissKeyboard() {
+            textView?.resignFirstResponder()
+        }
+
+        @objc private func moveCursorLeft() {
+            moveCursor(by: -1)
+        }
+
+        @objc private func moveCursorRight() {
+            moveCursor(by: 1)
+        }
+
+        @objc private func indentSelection() {
+            guard let textView else { return }
+            let selection = textView.selectedRange
+
+            guard selection.length > 0 else {
+                replaceSelection(in: textView, with: "  ")
+                return
+            }
+
+            let source = textView.text as NSString
+            let lineRange = source.lineRange(for: selection)
+            let selectedLines = source.substring(with: lineRange)
+            var indented =
+                "  "
+                + selectedLines.replacingOccurrences(
+                    of: "\n",
+                    with: "\n  "
+                )
+            if selectedLines.hasSuffix("\n") {
+                indented.removeLast(2)
+            }
+
+            let addedCount = indented.utf16.count - selectedLines.utf16.count
+            replace(
+                range: lineRange,
+                with: indented,
+                selection: NSRange(
+                    location: selection.location + 2,
+                    length: selection.length + max(0, addedCount - 2)
+                ),
+                in: textView
+            )
+        }
+
+        @objc private func outdentSelection() {
+            guard let textView else { return }
+            let selection = textView.selectedRange
+            let source = textView.text as NSString
+            let lineRange = source.lineRange(for: selection)
+            let selectedLines = source.substring(with: lineRange)
+            let transformed = removeIndentation(from: selectedLines)
+
+            guard transformed.text != selectedLines else { return }
+
+            let newLocation = max(
+                lineRange.location,
+                selection.location - transformed.firstLineRemoval
+            )
+            let newLength: Int
+            if selection.length == 0 {
+                newLength = 0
+            } else {
+                newLength = max(
+                    0,
+                    selection.length - transformed.totalRemoval
+                        + transformed.firstLineRemoval
+                )
+            }
+
+            replace(
+                range: lineRange,
+                with: transformed.text,
+                selection: NSRange(location: newLocation, length: newLength),
+                in: textView
+            )
+        }
+
+        @objc private func duplicateLines() {
+            guard let textView else { return }
+            let source = textView.text as NSString
+            let selection = textView.selectedRange
+            let lineRange = source.lineRange(for: selection)
+            let lineText = source.substring(with: lineRange)
+            let separator = lineText.hasSuffix("\n") ? "" : "\n"
+            let replacement = lineText + separator + lineText
+            replace(
+                range: lineRange,
+                with: replacement,
+                selection: NSRange(
+                    location: selection.location
+                        + lineText.utf16.count + separator.utf16.count,
+                    length: selection.length
+                ),
+                in: textView
+            )
+        }
+
+        @objc private func deleteLines() {
+            guard let textView else { return }
+            let source = textView.text as NSString
+            let lineRange = source.lineRange(for: textView.selectedRange)
+            let updatedLength = max(0, source.length - lineRange.length)
+            replace(
+                range: lineRange,
+                with: "",
+                selection: NSRange(
+                    location: min(lineRange.location, updatedLength),
+                    length: 0
+                ),
+                in: textView
+            )
+        }
+
+        @objc private func moveLinesUp() {
+            guard let textView else { return }
+            let source = textView.text as NSString
+            let selection = textView.selectedRange
+            let lineRange = source.lineRange(for: selection)
+            guard lineRange.location > 0 else { return }
+
+            let previousRange = source.lineRange(
+                for: NSRange(location: lineRange.location - 1, length: 0)
+            )
+            let previousText = source.substring(with: previousRange)
+            let currentText = source.substring(with: lineRange)
+            let combinedRange = NSRange(
+                location: previousRange.location,
+                length: previousRange.length + lineRange.length
+            )
+
+            let replacement =
+                removingTrailingNewline(from: currentText)
+                + "\n"
+                + removingTrailingNewline(from: previousText)
+                + (currentText.hasSuffix("\n") ? "\n" : "")
+
+            replace(
+                range: combinedRange,
+                with: replacement,
+                selection: NSRange(
+                    location: selection.location - previousRange.length,
+                    length: selection.length
+                ),
+                in: textView
+            )
+        }
+
+        @objc private func moveLinesDown() {
+            guard let textView else { return }
+            let source = textView.text as NSString
+            let selection = textView.selectedRange
+            let lineRange = source.lineRange(for: selection)
+            guard NSMaxRange(lineRange) < source.length else { return }
+
+            let nextRange = source.lineRange(
+                for: NSRange(location: NSMaxRange(lineRange), length: 0)
+            )
+            let currentText = source.substring(with: lineRange)
+            let nextText = source.substring(with: nextRange)
+            let combinedRange = NSRange(
+                location: lineRange.location,
+                length: lineRange.length + nextRange.length
+            )
+
+            let replacement =
+                removingTrailingNewline(from: nextText)
+                + "\n"
+                + removingTrailingNewline(from: currentText)
+                + (nextText.hasSuffix("\n") ? "\n" : "")
+
+            replace(
+                range: combinedRange,
+                with: replacement,
+                selection: NSRange(
+                    location: selection.location + nextRange.length,
+                    length: selection.length
+                ),
+                in: textView
+            )
+        }
+
+        private func removingTrailingNewline(from text: String) -> String {
+            text.hasSuffix("\n") ? String(text.dropLast()) : text
+        }
+
+        func toggleCommentFromKeyboard() {
+            toggleComment()
+        }
+
+        @objc private func toggleComment() {
+            guard let textView else { return }
+            let source = textView.text as NSString
+            let selection = textView.selectedRange
+            let lineRange = source.lineRange(for: selection)
+            let selectedText = source.substring(with: lineRange)
+            let style = commentStyle(for: parent.language.id)
+            let transformed: String
+
+            switch style {
+            case .line(let prefix):
+                let lines = selectedText.components(separatedBy: "\n")
+                let contentLines =
+                    selectedText.hasSuffix("\n")
+                    ? Array(lines.dropLast()) : lines
+                let allCommented =
+                    contentLines
+                    .filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+                    .allSatisfy {
+                        $0.trimmingCharacters(in: .whitespaces)
+                            .hasPrefix(prefix)
+                    }
+
+                transformed =
+                    contentLines.map { line in
+                        if line.trimmingCharacters(in: .whitespaces).isEmpty {
+                            return line
+                        }
+                        if allCommented,
+                            let range = line.range(of: prefix)
+                        {
+                            var uncommented = line
+                            uncommented.removeSubrange(range)
+                            if uncommented.hasPrefix(" ") {
+                                uncommented.removeFirst()
+                            }
+                            return uncommented
+                        }
+                        return prefix + " " + line
+                    }.joined(separator: "\n")
+                    + (selectedText.hasSuffix("\n") ? "\n" : "")
+            case .block(let opening, let closing):
+                let trimmed = selectedText.trimmingCharacters(
+                    in: .whitespacesAndNewlines
+                )
+                if trimmed.hasPrefix(opening), trimmed.hasSuffix(closing),
+                    let openRange = selectedText.range(of: opening),
+                    let closeRange = selectedText.range(
+                        of: closing,
+                        options: .backwards
+                    )
+                {
+                    var result = selectedText
+                    result.removeSubrange(closeRange)
+                    result.removeSubrange(openRange)
+                    transformed = result
+                } else {
+                    transformed = opening + " " + selectedText + " " + closing
+                }
+            }
+
+            replace(
+                range: lineRange,
+                with: transformed,
+                selection: NSRange(
+                    location: lineRange.location,
+                    length: transformed.utf16.count
+                ),
+                in: textView
+            )
+        }
+
+        @objc private func undo() {
+            textView?.undoManager?.undo()
+        }
+
+        @objc private func redo() {
+            textView?.undoManager?.redo()
+        }
+
+        private func moveCursor(by offset: Int) {
+            guard let textView,
+                let selectedTextRange = textView.selectedTextRange
+            else {
+                return
+            }
+
+            let anchor =
+                offset < 0
+                ? selectedTextRange.start : selectedTextRange.end
+            guard
+                let position = textView.position(
+                    from: anchor,
+                    offset: offset
+                )
+            else {
+                return
+            }
+
+            textView.selectedTextRange = textView.textRange(
+                from: position,
+                to: position
+            )
+            textView.scrollRangeToVisible(textView.selectedRange)
+        }
+
+        private func replaceSelection(
+            in textView: UITextView,
+            with text: String
+        ) {
+            let selection = textView.selectedRange
+            replace(
+                range: selection,
+                with: text,
+                selection: NSRange(
+                    location: selection.location + text.utf16.count,
+                    length: 0
+                ),
+                in: textView
+            )
+        }
+
+        private func replace(
+            range: NSRange,
+            with replacement: String,
+            selection: NSRange,
+            in textView: UITextView
+        ) {
+            guard let swiftRange = Range(range, in: textView.text) else {
+                return
+            }
+
+            var updatedText = textView.text ?? ""
+            updatedText.replaceSubrange(swiftRange, with: replacement)
+            textView.text = updatedText
+            textView.selectedRange = selection
+            parent.text = updatedText
+            parent.cursorLocation = selection.location
+            parent.applyHighlight(to: textView)
+            lastLanguageID = parent.language.id
+            lastThemeID = parent.theme.id
+        }
+
+        private func removeIndentation(
+            from text: String
+        ) -> (text: String, totalRemoval: Int, firstLineRemoval: Int) {
+            let keepsTrailingLine = text.hasSuffix("\n")
+            var lines = text.components(separatedBy: "\n")
+            if keepsTrailingLine {
+                lines.removeLast()
+            }
+
+            var removals: [Int] = []
+            let transformedLines = lines.map { line in
+                let removal: Int
+                if line.hasPrefix("  ") {
+                    removal = 2
+                } else if line.hasPrefix(" ") || line.hasPrefix("\t") {
+                    removal = 1
+                } else {
+                    removal = 0
+                }
+                removals.append(removal)
+                return String(line.dropFirst(removal))
+            }
+
+            var result = transformedLines.joined(separator: "\n")
+            if keepsTrailingLine {
+                result += "\n"
+            }
+            return (
+                result,
+                removals.reduce(0, +),
+                removals.first ?? 0
+            )
+        }
+
+        private enum CommentStyle {
+            case line(String)
+            case block(String, String)
+        }
+
+        private func commentStyle(for languageID: String) -> CommentStyle {
+            switch languageID {
+            case "html", "markdown":
+                return .block("<!--", "-->")
+            case "css":
+                return .block("/*", "*/")
+            case "python":
+                return .line("#")
+            case "sql":
+                return .line("--")
+            default:
+                return .line("//")
+            }
+        }
+
+        private func lineActionsMenuItem() -> UIBarButtonItem {
+            let menu = UIMenu(
+                title: "Zeile",
+                children: [
+                    UIAction(
+                        title: "Duplizieren",
+                        image: UIImage(systemName: "plus.square.on.square")
+                    ) { [weak self] _ in
+                        self?.duplicateLines()
+                    },
+                    UIAction(
+                        title: "Nach oben",
+                        image: UIImage(systemName: "arrow.up")
+                    ) { [weak self] _ in
+                        self?.moveLinesUp()
+                    },
+                    UIAction(
+                        title: "Nach unten",
+                        image: UIImage(systemName: "arrow.down")
+                    ) { [weak self] _ in
+                        self?.moveLinesDown()
+                    },
+                    UIAction(
+                        title: "Kommentar umschalten",
+                        image: UIImage(systemName: "text.bubble")
+                    ) { [weak self] _ in
+                        self?.toggleComment()
+                    },
+                    UIAction(
+                        title: "Löschen",
+                        image: UIImage(systemName: "trash"),
+                        attributes: .destructive
+                    ) { [weak self] _ in
+                        self?.deleteLines()
+                    },
+                ]
+            )
+            let item = UIBarButtonItem(
+                image: UIImage(
+                    systemName: "text.line.first.and.arrowtriangle.forward"
+                ),
+                menu: menu
+            )
+            item.accessibilityLabel = "Zeilenaktionen"
+            return item
+        }
+
+        private func symbolMenuItem() -> UIBarButtonItem {
+            let symbols: [String]
+            switch parent.language.id {
+            case "html":
+                symbols = ["<", ">", "</", "/>", "=", "\"", "'", "&"]
+            case "css":
+                symbols = ["{", "}", ":", ";", ".", "#", "(", ")"]
+            case "swift":
+                symbols = ["{", "}", "(", ")", "[", "]", ":", ".", "\""]
+            case "python":
+                symbols = ["(", ")", "[", "]", "{", "}", ":", "#"]
+            case "sql":
+                symbols = ["(", ")", ",", ";", "'", "\"", "*", "="]
+            default:
+                symbols = [
+                    "{", "}", "(", ")", "[", "]", "<", ">", ";", ":", "\"",
+                ]
+            }
+            let actions = symbols.map { symbol in
+                UIAction(title: symbol) { [weak self] _ in
+                    guard let self, let textView = self.textView else { return }
+                    self.replaceSelection(in: textView, with: symbol)
+                }
+            }
+            let item = UIBarButtonItem(
+                image: UIImage(
+                    systemName: "chevron.left.forwardslash.chevron.right"
+                ),
+                menu: UIMenu(title: "Codezeichen", children: actions)
+            )
+            item.accessibilityLabel = "Codezeichen"
+            return item
+        }
+
+        private func barButton(
+            systemImage: String,
+            accessibilityLabel: String,
+            action: Selector
+        ) -> UIBarButtonItem {
+            let item = UIBarButtonItem(
+                image: UIImage(systemName: systemImage),
+                style: .plain,
+                target: self,
+                action: action
+            )
+            item.accessibilityLabel = accessibilityLabel
+            return item
+        }
+
+        private func barButton(
+            title: String,
+            accessibilityLabel: String,
+            action: Selector
+        ) -> UIBarButtonItem {
+            let item = UIBarButtonItem(
+                title: title,
+                style: .plain,
+                target: self,
+                action: action
+            )
+            item.accessibilityLabel = accessibilityLabel
+            return item
+        }
+
+        private func flexibleSpace() -> UIBarButtonItem {
+            UIBarButtonItem(systemItem: .flexibleSpace)
+        }
+
+        private func fixedSpace(_ width: CGFloat) -> UIBarButtonItem {
+            let item = UIBarButtonItem(systemItem: .fixedSpace)
+            item.width = width
+            return item
+        }
+
+        func textViewDidBeginEditing(_ textView: UITextView) {
+            parent.onFocusChange(true)
+        }
+
+        func textViewDidEndEditing(_ textView: UITextView) {
+            parent.onFocusChange(false)
         }
 
         func textViewDidChange(_ textView: UITextView) {
             parent.text = textView.text
             parent.cursorLocation = textView.selectedRange.location
+            parent.selectionLength = textView.selectedRange.length
             parent.applyHighlight(to: textView)
             lastLanguageID = parent.language.id
             lastThemeID = parent.theme.id
@@ -1350,6 +2236,7 @@ struct CodeEditorView: UIViewRepresentable {
 
         func textViewDidChangeSelection(_ textView: UITextView) {
             parent.cursorLocation = textView.selectedRange.location
+            parent.selectionLength = textView.selectedRange.length
         }
 
         func textView(
@@ -1456,6 +2343,7 @@ struct CodeEditorView: UIViewRepresentable {
             )
             parent.text = updatedText
             parent.cursorLocation = textView.selectedRange.location
+            parent.selectionLength = 0
             parent.applyHighlight(to: textView)
         }
 
@@ -1808,6 +2696,205 @@ struct EditorTheme: Identifiable, Equatable {
         error: Color(red: 1.00, green: 0.18, blue: 0.18)
     )
 
+    private static func palette(
+        id: String,
+        name: String,
+        scheme: ColorScheme = .dark,
+        base: Color,
+        surface: Color,
+        accent: Color,
+        text: Color,
+        secondary: Color,
+        keyword: Color,
+        string: Color
+    ) -> EditorTheme {
+        EditorTheme(
+            id: id,
+            name: name,
+            preferredScheme: scheme,
+            background: base,
+            headerBackground: surface,
+            toolbarBackground: surface.opacity(0.96),
+            panelBackground: surface.opacity(0.82),
+            editorBackground: base.opacity(0.96),
+            consoleBackground: base,
+            consoleHeader: surface,
+            controlBackground: accent.opacity(scheme == .dark ? 0.12 : 0.09),
+            border: accent.opacity(0.28),
+            primaryText: text,
+            secondaryText: secondary,
+            selectedText: text,
+            codeText: text.opacity(0.94),
+            keyword: keyword,
+            string: string,
+            number: accent,
+            comment: secondary.opacity(0.78),
+            tag: keyword,
+            accent: accent,
+            success: Color(red: 0.24, green: 0.82, blue: 0.45),
+            warning: Color(red: 1.00, green: 0.72, blue: 0.20),
+            error: Color(red: 1.00, green: 0.28, blue: 0.30)
+        )
+    }
+
+    static let lemonade = palette(
+        id: "lemonade",
+        name: "Lemonade",
+        scheme: .light,
+        base: Color(red: 1.00, green: 0.99, blue: 0.86),
+        surface: Color(red: 1.00, green: 0.96, blue: 0.62),
+        accent: Color(red: 0.82, green: 0.68, blue: 0.02),
+        text: Color(red: 0.19, green: 0.22, blue: 0.08),
+        secondary: Color(red: 0.43, green: 0.45, blue: 0.22),
+        keyword: Color(red: 0.20, green: 0.52, blue: 0.14),
+        string: Color(red: 0.72, green: 0.38, blue: 0.04)
+    )
+    static let water = palette(
+        id: "water",
+        name: "Water",
+        base: Color(red: 0.01, green: 0.09, blue: 0.16),
+        surface: Color(red: 0.02, green: 0.18, blue: 0.28),
+        accent: Color(red: 0.16, green: 0.76, blue: 1.00),
+        text: Color(red: 0.84, green: 0.96, blue: 1.00),
+        secondary: Color(red: 0.45, green: 0.69, blue: 0.78),
+        keyword: Color(red: 0.32, green: 0.90, blue: 1.00),
+        string: Color(red: 0.48, green: 0.92, blue: 0.72)
+    )
+    static let nature = palette(
+        id: "nature",
+        name: "Nature",
+        base: Color(red: 0.025, green: 0.10, blue: 0.055),
+        surface: Color(red: 0.06, green: 0.18, blue: 0.09),
+        accent: Color(red: 0.32, green: 0.82, blue: 0.35),
+        text: Color(red: 0.86, green: 0.96, blue: 0.82),
+        secondary: Color(red: 0.48, green: 0.67, blue: 0.46),
+        keyword: Color(red: 0.48, green: 0.94, blue: 0.38),
+        string: Color(red: 0.92, green: 0.78, blue: 0.38)
+    )
+    static let fire = palette(
+        id: "fire",
+        name: "Fire",
+        base: Color(red: 0.13, green: 0.025, blue: 0.01),
+        surface: Color(red: 0.26, green: 0.055, blue: 0.015),
+        accent: Color(red: 1.00, green: 0.36, blue: 0.05),
+        text: Color(red: 1.00, green: 0.90, blue: 0.76),
+        secondary: Color(red: 0.76, green: 0.50, blue: 0.36),
+        keyword: Color(red: 1.00, green: 0.66, blue: 0.08),
+        string: Color(red: 1.00, green: 0.36, blue: 0.24)
+    )
+    static let lava = palette(
+        id: "lava",
+        name: "Lava",
+        base: Color(red: 0.07, green: 0.005, blue: 0.008),
+        surface: Color(red: 0.20, green: 0.018, blue: 0.02),
+        accent: Color(red: 1.00, green: 0.12, blue: 0.04),
+        text: Color(red: 1.00, green: 0.84, blue: 0.78),
+        secondary: Color(red: 0.70, green: 0.38, blue: 0.34),
+        keyword: Color(red: 1.00, green: 0.40, blue: 0.08),
+        string: Color(red: 1.00, green: 0.72, blue: 0.14)
+    )
+    static let wind = palette(
+        id: "wind",
+        name: "Wind",
+        scheme: .light,
+        base: Color(red: 0.94, green: 0.98, blue: 0.98),
+        surface: Color(red: 0.84, green: 0.93, blue: 0.94),
+        accent: Color(red: 0.20, green: 0.60, blue: 0.66),
+        text: Color(red: 0.08, green: 0.20, blue: 0.22),
+        secondary: Color(red: 0.34, green: 0.48, blue: 0.50),
+        keyword: Color(red: 0.10, green: 0.48, blue: 0.56),
+        string: Color(red: 0.42, green: 0.36, blue: 0.70)
+    )
+    static let earth = palette(
+        id: "earth",
+        name: "Earth",
+        base: Color(red: 0.11, green: 0.07, blue: 0.035),
+        surface: Color(red: 0.22, green: 0.14, blue: 0.07),
+        accent: Color(red: 0.70, green: 0.48, blue: 0.20),
+        text: Color(red: 0.94, green: 0.86, blue: 0.70),
+        secondary: Color(red: 0.62, green: 0.52, blue: 0.38),
+        keyword: Color(red: 0.56, green: 0.78, blue: 0.32),
+        string: Color(red: 0.92, green: 0.58, blue: 0.28)
+    )
+    static let berry = palette(
+        id: "berry",
+        name: "Berry",
+        base: Color(red: 0.10, green: 0.02, blue: 0.12),
+        surface: Color(red: 0.23, green: 0.05, blue: 0.25),
+        accent: Color(red: 0.84, green: 0.22, blue: 0.78),
+        text: Color(red: 0.98, green: 0.86, blue: 1.00),
+        secondary: Color(red: 0.68, green: 0.48, blue: 0.70),
+        keyword: Color(red: 1.00, green: 0.38, blue: 0.76),
+        string: Color(red: 0.66, green: 0.70, blue: 1.00)
+    )
+    static let cherry = palette(
+        id: "cherry",
+        name: "Cherry",
+        base: Color(red: 0.12, green: 0.01, blue: 0.04),
+        surface: Color(red: 0.25, green: 0.025, blue: 0.08),
+        accent: Color(red: 0.94, green: 0.08, blue: 0.28),
+        text: Color(red: 1.00, green: 0.86, blue: 0.90),
+        secondary: Color(red: 0.72, green: 0.44, blue: 0.50),
+        keyword: Color(red: 1.00, green: 0.24, blue: 0.44),
+        string: Color(red: 1.00, green: 0.62, blue: 0.70)
+    )
+    static let strawberry = palette(
+        id: "strawberry",
+        name: "Strawberry",
+        scheme: .light,
+        base: Color(red: 1.00, green: 0.94, blue: 0.94),
+        surface: Color(red: 1.00, green: 0.82, blue: 0.84),
+        accent: Color(red: 0.88, green: 0.16, blue: 0.28),
+        text: Color(red: 0.30, green: 0.06, blue: 0.10),
+        secondary: Color(red: 0.56, green: 0.30, blue: 0.34),
+        keyword: Color(red: 0.72, green: 0.06, blue: 0.20),
+        string: Color(red: 0.20, green: 0.48, blue: 0.24)
+    )
+    static let kiwi = palette(
+        id: "kiwi",
+        name: "Kiwi",
+        base: Color(red: 0.055, green: 0.09, blue: 0.018),
+        surface: Color(red: 0.12, green: 0.19, blue: 0.035),
+        accent: Color(red: 0.58, green: 0.90, blue: 0.14),
+        text: Color(red: 0.91, green: 0.98, blue: 0.78),
+        secondary: Color(red: 0.56, green: 0.68, blue: 0.39),
+        keyword: Color(red: 0.70, green: 1.00, blue: 0.22),
+        string: Color(red: 0.94, green: 0.78, blue: 0.28)
+    )
+    static let pineapple = palette(
+        id: "pineapple",
+        name: "Pineapple",
+        base: Color(red: 0.10, green: 0.075, blue: 0.012),
+        surface: Color(red: 0.20, green: 0.15, blue: 0.025),
+        accent: Color(red: 1.00, green: 0.78, blue: 0.08),
+        text: Color(red: 1.00, green: 0.95, blue: 0.74),
+        secondary: Color(red: 0.72, green: 0.62, blue: 0.38),
+        keyword: Color(red: 1.00, green: 0.86, blue: 0.14),
+        string: Color(red: 0.48, green: 0.84, blue: 0.32)
+    )
+    static let space = palette(
+        id: "space",
+        name: "Space",
+        base: Color(red: 0.025, green: 0.02, blue: 0.10),
+        surface: Color(red: 0.07, green: 0.055, blue: 0.20),
+        accent: Color(red: 0.52, green: 0.42, blue: 1.00),
+        text: Color(red: 0.90, green: 0.90, blue: 1.00),
+        secondary: Color(red: 0.52, green: 0.52, blue: 0.74),
+        keyword: Color(red: 0.74, green: 0.48, blue: 1.00),
+        string: Color(red: 0.32, green: 0.86, blue: 1.00)
+    )
+    static let deepSpace = palette(
+        id: "deepSpace",
+        name: "Deep Space",
+        base: Color(red: 0.002, green: 0.004, blue: 0.015),
+        surface: Color(red: 0.018, green: 0.025, blue: 0.065),
+        accent: Color(red: 0.20, green: 0.50, blue: 1.00),
+        text: Color(red: 0.80, green: 0.86, blue: 1.00),
+        secondary: Color(red: 0.34, green: 0.40, blue: 0.58),
+        keyword: Color(red: 0.48, green: 0.64, blue: 1.00),
+        string: Color(red: 0.66, green: 0.44, blue: 1.00)
+    )
+
     static let all: [EditorTheme] = [
         .techDark,
         .classicDark,
@@ -1818,9 +2905,25 @@ struct EditorTheme: Identifiable, Equatable {
         .bloodRed,
         .aquaCyan,
         .highContrast,
+        .lemonade,
+        .water,
+        .nature,
+        .fire,
+        .lava,
+        .wind,
+        .earth,
+        .berry,
+        .cherry,
+        .strawberry,
+        .kiwi,
+        .pineapple,
+        .space,
+        .deepSpace,
     ]
 }
 
 #Preview {
-    HomeView(model: EditorModel())
+    NavigationStack {
+        HomeView(model: EditorModel())
+    }
 }
