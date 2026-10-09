@@ -109,6 +109,7 @@ private struct FoundationModelAssistantView: View {
                         errorMessage: errorMessage,
                         isGenerating: isGenerating,
                         languageName: model.selectedLanguage.name,
+                        theme: model.selectedTheme,
                         strings: strings,
                         onGenerate: generate,
                         onCancel: cancelGeneration,
@@ -314,6 +315,7 @@ private struct AIAssistantWorkspace: View {
     let errorMessage: String?
     let isGenerating: Bool
     let languageName: String
+    let theme: EditorTheme
     let strings: AIAssistantStrings
 
     let onGenerate: () -> Void
@@ -349,6 +351,10 @@ private struct AIAssistantWorkspace: View {
                     cancelTitle: strings.languageCode == "de"
                         ? "Abbrechen"
                         : "Cancel",
+                    dismissKeyboardTitle: strings.languageCode == "de"
+                        ? "Tastatur schließen"
+                        : "Dismiss Keyboard",
+                    theme: theme,
                     isGenerating: isGenerating,
                     onGenerate: onGenerate,
                     onCancel: onCancel
@@ -371,7 +377,15 @@ private struct AIAssistantWorkspace: View {
                     )
                 }
 
-                if !generatedCode.isEmpty || isGenerating {
+                if isGenerating && generatedCode.isEmpty {
+                    AIGenerationStatusCard(
+                        title: strings.generating,
+                        message: strings.onDeviceProcessing,
+                        theme: theme
+                    )
+                }
+
+                if !generatedCode.isEmpty {
                     AIGeneratedCodeCard(
                         code: generatedCode,
                         languageName: languageName,
@@ -379,6 +393,7 @@ private struct AIAssistantWorkspace: View {
                         replaceTitle: strings.replace,
                         appendTitle: strings.append,
                         isGenerating: isGenerating,
+                        theme: theme,
                         onReplace: onReplace,
                         onAppend: onAppend,
                         onOpenEditor: onOpenEditor,
@@ -421,6 +436,8 @@ private struct AIPromptComposer: View {
     let placeholder: String
     let buttonTitle: String
     let cancelTitle: String
+    let dismissKeyboardTitle: String
+    let theme: EditorTheme
     let isGenerating: Bool
     let onGenerate: () -> Void
     let onCancel: () -> Void
@@ -437,6 +454,11 @@ private struct AIPromptComposer: View {
         VStack(alignment: .leading, spacing: 12) {
             promptField
             actionButton
+        }
+        .keyboardDismissToolbar(
+            accessibilityTitle: dismissKeyboardTitle
+        ) {
+            isFocused = false
         }
     }
 
@@ -457,7 +479,7 @@ private struct AIPromptComposer: View {
                 TextEditor(text: $prompt)
                     .focused($isFocused)
                     .font(.body)
-                    .frame(minHeight: 120)
+                    .frame(height: 128)
                     .scrollContentBackground(.hidden)
                     .disabled(isGenerating)
             }
@@ -480,7 +502,7 @@ private struct AIPromptComposer: View {
             RoundedRectangle(cornerRadius: 18)
                 .strokeBorder(
                     isFocused
-                        ? Color.accentColor.opacity(0.6)
+                        ? theme.accent.opacity(0.75)
                         : Color.primary.opacity(0.08),
                     lineWidth: isFocused ? 1.5 : 1
                 )
@@ -519,6 +541,53 @@ private struct AIPromptComposer: View {
             .controlSize(.large)
             .disabled(isPromptEmpty)
         }
+    }
+}
+
+private struct AIGenerationStatusCard: View {
+    let title: String
+    let message: String
+    let theme: EditorTheme
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        HStack(spacing: 16) {
+            ProgressView()
+                .controlSize(.large)
+                .tint(theme.accent)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(theme.primaryText)
+
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundStyle(theme.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            theme.accent.opacity(0.08),
+            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(theme.accent, lineWidth: 2)
+                .phaseAnimator(reduceMotion ? [false] : [false, true]) {
+                    content,
+                    highlighted in
+                    content.opacity(highlighted ? 0.35 : 0.9)
+                } animation: { _ in
+                    .easeInOut(duration: 0.9)
+                }
+        }
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -577,6 +646,7 @@ private struct AIGeneratedCodeCard: View {
     let replaceTitle: String
     let appendTitle: String
     let isGenerating: Bool
+    let theme: EditorTheme
     let onReplace: () -> Void
     let onAppend: () -> Void
     let onOpenEditor: () -> Void
@@ -621,6 +691,13 @@ private struct AIGeneratedCodeCard: View {
         }
         .padding()
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+        .overlay {
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(
+                    isGenerating ? theme.accent : theme.border,
+                    lineWidth: isGenerating ? 2 : 1
+                )
+        }
     }
 
     @ViewBuilder
@@ -702,6 +779,10 @@ private struct AIAssistantStrings {
 
     var generating: String {
         localized("Generating code…")
+    }
+
+    var onDeviceProcessing: String {
+        localized("AI processing happens directly on your device.")
     }
 
     var cancel: String {
