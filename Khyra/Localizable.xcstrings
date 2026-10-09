@@ -139,6 +139,7 @@
       }
     },
     "AI" : {
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

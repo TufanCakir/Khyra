@@ -117,10 +117,11 @@ struct RootView: View {
             }
         }
         .tabItem {
-            Label(
-                "AI",
-                systemImage: "apple.intelligence"
-            )
+            Label {
+                Text(verbatim: "AI")
+            } icon: {
+                Image(systemName: "apple.intelligence")
+            }
         }
         .tag(AppTab.ai)
     }
