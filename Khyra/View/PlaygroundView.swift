@@ -49,6 +49,8 @@ struct PlaygroundView: View {
     }
 
     var body: some View {
+        @Bindable var model = model
+
         ZStack {
             model.selectedTheme.background
                 .ignoresSafeArea()
@@ -76,7 +78,7 @@ struct PlaygroundView: View {
                 )
 
                 CodeEditorView(
-                    text: model.activeCode,
+                    text: $model.activeCodeText,
                     cursorLocation: cursorLocation,
                     selectionLength: selectionLength,
                     language: model.selectedLanguage,

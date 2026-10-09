@@ -63,6 +63,8 @@ struct HomeView: View {
     }
 
     var body: some View {
+        @Bindable var model = model
+
         ZStack {
             model.selectedTheme.background
                 .ignoresSafeArea()
@@ -104,9 +106,9 @@ struct HomeView: View {
                     }
 
                     CodeEditorView(
-                        text: model.activeCode,
-                        cursorLocation: cursorLocation,
-                        selectionLength: selectionLength,
+                        text: $model.activeCodeText,
+                        cursorLocation: $model.cursorLocation,
+                        selectionLength: $model.editorSelectionLength,
                         language: model.selectedLanguage,
                         theme: model.selectedTheme,
                         wrapsLongLines: wrapsLongLines,
@@ -1502,11 +1504,13 @@ struct CodeEditorView: UIViewRepresentable {
             || context.coordinator.lastLanguageID != language.id
             || context.coordinator.lastThemeID != theme.id
             || context.coordinator.lastFontSize != fontSize
+            || context.coordinator.lastIssues != issues
         {
             applyHighlight(to: textView)
             context.coordinator.lastLanguageID = language.id
             context.coordinator.lastThemeID = theme.id
             context.coordinator.lastFontSize = fontSize
+            context.coordinator.lastIssues = issues
         }
         let requestedSelection = NSRange(
             location: cursorLocation,
@@ -1611,6 +1615,7 @@ struct CodeEditorView: UIViewRepresentable {
         var lastLanguageID: String
         var lastThemeID: String
         var lastFontSize: CGFloat
+        var lastIssues: [LintIssue]
         private weak var textView: UITextView?
         private weak var keyboardToolbar: UIToolbar?
 
@@ -1619,6 +1624,7 @@ struct CodeEditorView: UIViewRepresentable {
             self.lastLanguageID = parent.language.id
             self.lastThemeID = parent.theme.id
             self.lastFontSize = parent.fontSize
+            self.lastIssues = parent.issues
         }
 
         func attachPinchGesture(to textView: UITextView) {

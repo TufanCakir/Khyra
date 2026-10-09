@@ -79,13 +79,19 @@ final class EditorModel {
             : Locale(identifier: appLanguageCode)
     }
 
+    var activeCodeText: String {
+        get {
+            documents[activeDocumentKey] ?? selectedLanguage.sampleCode
+        }
+        set {
+            setCode(newValue, for: activeDocumentKey)
+        }
+    }
+
     var activeCode: Binding<String> {
         Binding(
-            get: {
-                self.documents[self.activeDocumentKey]
-                    ?? self.selectedLanguage.sampleCode
-            },
-            set: { self.setCode($0, for: self.activeDocumentKey) }
+            get: { self.activeCodeText },
+            set: { self.activeCodeText = $0 }
         )
     }
 
