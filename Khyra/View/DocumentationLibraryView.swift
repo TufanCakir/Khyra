@@ -30,7 +30,7 @@ struct DocumentationLibraryView: View {
         )
         .searchable(
             text: $searchText,
-            prompt: model.appLanguageCode == "de"
+            prompt: model.resolvedAppLanguageCode == "de"
                 ? "Sprache, Framework oder API"
                 : "Language, framework, or API"
         )

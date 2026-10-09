@@ -120,7 +120,7 @@ struct HomeView: View {
                         InlineDiagnosticsView(
                             issues: model.issues,
                             theme: model.selectedTheme,
-                            isGerman: model.appLanguageCode == "de",
+                            isGerman: model.resolvedAppLanguageCode == "de",
                             onSelect: model.jumpToIssue,
                             onQuickFix: { issue in
                                 if !model.applyQuickFix(for: issue) {
@@ -305,7 +305,7 @@ struct HomeView: View {
                         showFindReplace = true
                     } label: {
                         Label(
-                            model.appLanguageCode == "de"
+                            model.resolvedAppLanguageCode == "de"
                                 ? "Suchen & Ersetzen" : "Find & Replace",
                             systemImage: "magnifyingglass"
                         )
@@ -316,7 +316,7 @@ struct HomeView: View {
                         showGoToLine = true
                     } label: {
                         Label(
-                            model.appLanguageCode == "de"
+                            model.resolvedAppLanguageCode == "de"
                                 ? "Gehe zu Zeile" : "Go to Line",
                             systemImage: "arrow.right.to.line"
                         )
@@ -337,7 +337,7 @@ struct HomeView: View {
 
                     Toggle(isOn: $wrapsLongLines) {
                         Label(
-                            model.appLanguageCode == "de"
+                            model.resolvedAppLanguageCode == "de"
                                 ? "Lange Zeilen umbrechen" : "Wrap long lines",
                             systemImage: "text.word.spacing"
                         )
@@ -345,7 +345,7 @@ struct HomeView: View {
 
                     Toggle(isOn: $focusModeEnabled) {
                         Label(
-                            model.appLanguageCode == "de"
+                            model.resolvedAppLanguageCode == "de"
                                 ? "Fokusmodus" : "Focus mode",
                             systemImage: "viewfinder"
                         )
@@ -356,7 +356,7 @@ struct HomeView: View {
                         showAISelection = true
                     } label: {
                         Label(
-                            model.appLanguageCode == "de"
+                            model.resolvedAppLanguageCode == "de"
                                 ? "Auswahl mit KI" : "AI for Selection",
                             systemImage: "apple.intelligence"
                         )
@@ -367,7 +367,7 @@ struct HomeView: View {
                         showLayoutCustomization = true
                     } label: {
                         Label(
-                            model.appLanguageCode == "de"
+                            model.resolvedAppLanguageCode == "de"
                                 ? "Layout bearbeiten" : "Edit Layout",
                             systemImage: "rectangle.3.group"
                         )
@@ -420,7 +420,7 @@ struct HomeView: View {
                 code: model.activeCode,
                 cursorLocation: cursorLocation,
                 selectionLength: selectionLength,
-                isGerman: model.appLanguageCode == "de"
+                isGerman: model.resolvedAppLanguageCode == "de"
             )
             .preferredColorScheme(model.selectedTheme.preferredScheme)
         }
@@ -429,7 +429,7 @@ struct HomeView: View {
                 cursorLocation: cursorLocation,
                 selectionLength: selectionLength,
                 code: model.activeCode.wrappedValue,
-                isGerman: model.appLanguageCode == "de"
+                isGerman: model.resolvedAppLanguageCode == "de"
             )
             .preferredColorScheme(model.selectedTheme.preferredScheme)
         }
@@ -457,7 +457,7 @@ struct HomeView: View {
                 panels: $workspacePanels,
                 showsSuggestions: $showsSuggestions,
                 showsDiagnostics: $showsInlineDiagnostics,
-                isGerman: model.appLanguageCode == "de"
+                isGerman: model.resolvedAppLanguageCode == "de"
             )
             .preferredColorScheme(model.selectedTheme.preferredScheme)
         }

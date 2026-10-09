@@ -27,6 +27,7 @@ struct ThemedActionButton: View {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 13, weight: .bold))
             }
+
             .padding(16)
             .frame(maxWidth: .infinity)
         }
@@ -39,6 +40,50 @@ struct ThemedActionButton: View {
         .overlay(
             RoundedRectangle(cornerRadius: 8)
                 .stroke(theme.border, lineWidth: 1)
+        )
+    }
+}
+
+struct DestructiveConfirmationModifier: ViewModifier {
+    @Binding var isPresented: Bool
+
+    let title: String
+    let message: String
+    let confirmTitle: String
+    let cancelTitle: String
+    let action: () -> Void
+
+    func body(content: Content) -> some View {
+        content.alert(
+            title,
+            isPresented: $isPresented
+        ) {
+            Button(confirmTitle, role: .destructive, action: action)
+            Button(cancelTitle, role: .cancel) {}
+        } message: {
+            Text(message)
+        }
+    }
+}
+
+extension View {
+    func destructiveConfirmation(
+        isPresented: Binding<Bool>,
+        title: String,
+        message: String,
+        confirmTitle: String,
+        cancelTitle: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        modifier(
+            DestructiveConfirmationModifier(
+                isPresented: isPresented,
+                title: title,
+                message: message,
+                confirmTitle: confirmTitle,
+                cancelTitle: cancelTitle,
+                action: action
+            )
         )
     }
 }

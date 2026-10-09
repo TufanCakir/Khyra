@@ -142,7 +142,7 @@ struct EditorAISelectionView: View {
         .preferredColorScheme(model.selectedTheme.preferredScheme)
     }
 
-    private var isGerman: Bool { model.appLanguageCode == "de" }
+    private var isGerman: Bool { model.resolvedAppLanguageCode == "de" }
 
     private func generate() {
         guard !model.selectedCode.isEmpty else { return }

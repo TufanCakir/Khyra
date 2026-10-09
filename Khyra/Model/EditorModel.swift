@@ -26,7 +26,7 @@ final class EditorModel {
             )
         }
     }
-    var appLanguageCode = "de" {
+    var appLanguageCode = "system" {
         didSet {
             UserDefaults.standard.set(
                 appLanguageCode,
@@ -62,7 +62,21 @@ final class EditorModel {
     }
 
     var appStrings: AppStrings {
-        AppStrings.load(languageCode: appLanguageCode)
+        AppStrings.load(languageCode: resolvedAppLanguageCode)
+    }
+
+    var resolvedAppLanguageCode: String {
+        if appLanguageCode == "system" {
+            return Locale.current.language.languageCode?.identifier == "de"
+                ? "de" : "en"
+        }
+        return appLanguageCode == "de" ? "de" : "en"
+    }
+
+    var appLocale: Locale {
+        appLanguageCode == "system"
+            ? .autoupdatingCurrent
+            : Locale(identifier: appLanguageCode)
     }
 
     var activeCode: Binding<String> {
@@ -138,12 +152,9 @@ final class EditorModel {
     }
 
     init() {
-        let fallbackLanguage =
-            Locale.current.language.languageCode?.identifier == "de"
-            ? "de" : "en"
         appLanguageCode =
             UserDefaults.standard.string(forKey: Self.appLanguageKey)
-            ?? fallbackLanguage
+            ?? "system"
         selectedThemeID =
             UserDefaults.standard.string(forKey: Self.selectedThemeKey)
             ?? EditorTheme.classicDark.id
@@ -152,7 +163,9 @@ final class EditorModel {
     }
 
     func setLanguage(_ languageCode: String) {
-        appLanguageCode = languageCode == "de" ? "de" : "en"
+        appLanguageCode =
+            ["system", "de", "en"].contains(languageCode)
+            ? languageCode : "system"
     }
 
     func seedDocumentsIfNeeded() {
@@ -619,6 +632,170 @@ final class EditorModel {
         let replacement = framework.boilerplateCode
         setActiveCode(replacement)
         cursorLocation = replacement.utf16.count
+    }
+
+    func replaceActiveCodeFromAI(_ code: String) {
+        let replacement = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !replacement.isEmpty else { return }
+
+        if !activeCode.wrappedValue.trimmingCharacters(
+            in: .whitespacesAndNewlines
+        ).isEmpty {
+            saveCodeVersion(title: "Vor KI-Ersetzung")
+        }
+        setActiveCode(replacement)
+        cursorLocation = replacement.utf16.count
+        editorSelectionLength = 0
+        saveProject()
+    }
+
+    func appendActiveCodeFromAI(_ code: String) {
+        let addition = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !addition.isEmpty else { return }
+
+        let existing = activeCode.wrappedValue
+        if !existing.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            saveCodeVersion(title: "Vor KI-Ergänzung")
+        }
+        let separator =
+            existing.trimmingCharacters(
+                in: .whitespacesAndNewlines
+            ).isEmpty ? "" : "\n\n"
+        let updated = existing + separator + addition
+        setActiveCode(updated)
+        cursorLocation = updated.utf16.count
+        editorSelectionLength = 0
+        saveProject()
+    }
+
+    func applyAIProjectPlan(_ plan: AIProjectPlan) {
+        let safeFolders = plan.folders
+            .map { safeAgentItemName($0) }
+            .filter { !$0.isEmpty }
+            .prefix(12)
+
+        let safeFiles = plan.files.compactMap {
+            change -> AIProjectFileChange? in
+            let name = safeAgentItemName(change.name)
+            guard !name.isEmpty, !change.content.isEmpty else { return nil }
+            return AIProjectFileChange(
+                name: name,
+                languageID: change.languageID,
+                content: change.content
+            )
+        }.prefix(20)
+
+        guard !safeFiles.isEmpty else { return }
+
+        if !hasActiveProject {
+            currentProjectID = UUID()
+            projectName = "Khyra AI Project"
+            projectIdentifier = "khyra-ai-project"
+            projectItems = []
+            documents = [:]
+            selectedProjectItemID = nil
+            hasActiveProject = true
+        }
+
+        for folderName in safeFolders
+        where !projectItems.contains(where: {
+            $0.kind == .folder
+                && $0.name.caseInsensitiveCompare(folderName) == .orderedSame
+        }) {
+            projectItems.append(
+                ProjectItem(
+                    name: folderName,
+                    kind: .folder,
+                    languageID: nil,
+                    children: []
+                )
+            )
+        }
+
+        var firstChangedItem: ProjectItem?
+        for change in safeFiles {
+            let language =
+                languageStore.languages.first {
+                    $0.id == change.languageID
+                } ?? languageForFileName(change.name)
+
+            let item: ProjectItem
+            if let existing = projectItems.first(where: {
+                $0.kind == .file
+                    && $0.name.caseInsensitiveCompare(change.name)
+                        == .orderedSame
+            }) {
+                item = existing
+                saveAgentVersionIfNeeded(for: existing, language: language)
+            } else {
+                item = ProjectItem(
+                    name: change.name,
+                    kind: .file,
+                    languageID: language.id,
+                    children: []
+                )
+                projectItems.append(item)
+            }
+
+            setCode(change.content, for: item.documentKey)
+            if firstChangedItem == nil {
+                firstChangedItem = item
+            }
+        }
+
+        if let firstChangedItem, let languageID = firstChangedItem.languageID {
+            selectedProjectItemID = firstChangedItem.id
+            selectedLanguageID = languageID
+            cursorLocation =
+                documents[firstChangedItem.documentKey]?.utf16.count ?? 0
+            editorSelectionLength = 0
+        }
+
+        saveProject()
+        reloadVersions()
+    }
+
+    private func saveAgentVersionIfNeeded(
+        for item: ProjectItem,
+        language: CodeLanguage
+    ) {
+        guard let code = documents[item.documentKey],
+            !code.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return }
+
+        let version = CodeVersion(
+            title: "Vor Khyra Agent",
+            languageID: language.id,
+            documentKey: item.documentKey,
+            code: code,
+            lineCount: max(
+                1,
+                code.components(separatedBy: .newlines).count
+            ),
+            issueCount: CodeLinter.lint(code, language: language).count
+        )
+        VersionStore.save(
+            version,
+            projectID: currentProjectID,
+            documentKey: item.documentKey
+        )
+    }
+
+    private func languageForFileName(_ name: String) -> CodeLanguage {
+        let fileExtension = (name as NSString).pathExtension.lowercased()
+        return languageStore.languages.first {
+            ($0.fileExtension as NSString).pathExtension.lowercased()
+                == fileExtension
+        } ?? selectedLanguage
+    }
+
+    private func safeAgentItemName(_ value: String) -> String {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.contains("..") else { return "" }
+        return
+            trimmed
+            .replacingOccurrences(of: "\\", with: "-")
+            .replacingOccurrences(of: "/", with: "-")
     }
 
     func saveActiveSelectionAsSnippet(title: String, trigger: String) {

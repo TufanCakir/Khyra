@@ -461,8 +461,6 @@ struct ProjectSetupModal: View {
     private func createProject() {
         guard canCreate else { return }
 
-        print("1 - Create gestartet")
-
         model.createProject(
             template: template,
             name: projectName,
@@ -473,15 +471,8 @@ struct ProjectSetupModal: View {
             includeReadme: includeReadme
         )
 
-        print("2 - Projekt erstellt")
-
         model.saveProject()
-
-        print("3 - Projekt gespeichert")
-
         onCreate()
-
-        print("4 - onCreate abgeschlossen")
     }
 
     private static func identifier(from value: String) -> String {
@@ -541,6 +532,7 @@ struct ProjectPickerModal: View {
                                 project: project,
                                 theme: theme,
                                 strings: model.appStrings,
+                                isGerman: model.resolvedAppLanguageCode == "de",
                                 onOpen: {
                                     model.loadProject(project)
                                     onOpen()
@@ -565,10 +557,12 @@ struct ProjectLibraryRow: View {
     let project: SavedProject
     let theme: EditorTheme
     let strings: AppStrings
+    let isGerman: Bool
     let onOpen: () -> Void
     let onRename: (String) -> Void
     let onDelete: () -> Void
     @State private var showRenamePrompt = false
+    @State private var showDeleteConfirmation = false
     @State private var renamedProjectName = ""
 
     var body: some View {
@@ -614,7 +608,9 @@ struct ProjectLibraryRow: View {
             .buttonStyle(.plain)
             .foregroundStyle(theme.accent)
 
-            Button(role: .destructive, action: onDelete) {
+            Button(role: .destructive) {
+                showDeleteConfirmation = true
+            } label: {
                 Image(systemName: "trash")
                     .frame(width: 34, height: 34)
             }
@@ -629,6 +625,16 @@ struct ProjectLibraryRow: View {
         .overlay(
             RoundedRectangle(cornerRadius: 8)
                 .stroke(theme.border, lineWidth: 1)
+        )
+        .destructiveConfirmation(
+            isPresented: $showDeleteConfirmation,
+            title: isGerman ? "Projekt löschen?" : "Delete project?",
+            message: isGerman
+                ? "„\(project.projectName)“ wird dauerhaft gelöscht."
+                : "“\(project.projectName)” will be permanently deleted.",
+            confirmTitle: strings.delete,
+            cancelTitle: strings.cancel,
+            action: onDelete
         )
         .alert(strings.renameProject, isPresented: $showRenamePrompt) {
             TextField(strings.projectName, text: $renamedProjectName)

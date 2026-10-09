@@ -11,43 +11,89 @@ import SwiftUI
     import FoundationModels
 #endif
 
+enum AIAssistantMode: String, CaseIterable, Identifiable {
+    case generate
+    case improve
+    case repair
+    case explain
+    case agent
+
+    var id: String { rawValue }
+
+    func title(languageCode: String) -> String {
+        let locale = Locale(identifier: languageCode)
+        switch self {
+        case .generate: return String(localized: "Create", locale: locale)
+        case .improve: return String(localized: "Improve", locale: locale)
+        case .repair: return String(localized: "Repair", locale: locale)
+        case .explain: return String(localized: "Explain", locale: locale)
+        case .agent: return String(localized: "Agent", locale: locale)
+        }
+    }
+
+    var promptInstruction: String {
+        switch self {
+        case .generate:
+            "Create complete code for the requested task."
+        case .improve:
+            "Improve the existing code while preserving its behavior."
+        case .repair:
+            "Repair errors in the existing code and return the corrected code."
+        case .explain:
+            "Explain the existing code clearly and compactly. Do not return replacement code."
+        case .agent:
+            "Plan complete project file and folder changes for the requested task."
+        }
+    }
+
+    var producesCode: Bool {
+        self != .explain && self != .agent
+    }
+
+    var isAgent: Bool { self == .agent }
+}
+
 struct AIAssistantView: View {
     let model: EditorModel
+    let onOpenEditor: () -> Void
 
     var body: some View {
         if #available(iOS 26.0, *) {
-            FoundationModelAssistantView(model: model)
+            FoundationModelAssistantView(
+                model: model,
+                onOpenEditor: onOpenEditor
+            )
         } else {
             AIAssistantUnavailableView(
-                title: localized(
-                    german: "KI benötigt iOS 26",
-                    english: "AI requires iOS 26"
+                title: String(
+                    localized: "AI requires iOS 26",
+                    locale: model.appLocale
                 ),
-                message: localized(
-                    german:
-                        "Aktualisiere dein Gerät, um das lokale Sprachmodell zu verwenden.",
-                    english:
-                        "Update your device to use the on-device language model."
+                message: String(
+                    localized:
+                        "Update your device to use the on-device language model.",
+                    locale: model.appLocale
                 )
             )
         }
     }
 
-    private func localized(german: String, english: String) -> String {
-        model.appLanguageCode == "de" ? german : english
-    }
 }
 
 @available(iOS 26.0, *)
 private struct FoundationModelAssistantView: View {
     let model: EditorModel
+    let onOpenEditor: () -> Void
 
     @State private var showReplaceConfirmation = false
     @State private var generationTask: Task<Void, Never>?
     @State private var prompt = ""
+    @State private var selectedMode: AIAssistantMode = .generate
     @State private var generatedCode = ""
     @State private var errorMessage: String?
     @State private var isGenerating = false
+    @State private var projectPlan: AIProjectPlan?
+    @State private var showApplyPlanConfirmation = false
 
     var body: some View {
         Group {
@@ -57,7 +103,9 @@ private struct FoundationModelAssistantView: View {
                 case .available:
                     AIAssistantWorkspace(
                         prompt: $prompt,
+                        mode: $selectedMode,
                         generatedCode: generatedCode,
+                        projectPlan: projectPlan,
                         errorMessage: errorMessage,
                         isGenerating: isGenerating,
                         languageName: model.selectedLanguage.name,
@@ -71,7 +119,11 @@ private struct FoundationModelAssistantView: View {
                                 showReplaceConfirmation = true
                             }
                         },
-                        onAppend: appendToActiveCode
+                        onAppend: appendToActiveCode,
+                        onOpenEditor: onOpenEditor,
+                        onApplyPlan: {
+                            showApplyPlanConfirmation = true
+                        }
                     )
                 case .unavailable(.deviceNotEligible):
                     AIAssistantUnavailableView(
@@ -115,13 +167,28 @@ private struct FoundationModelAssistantView: View {
             Button(strings.cancel, role: .cancel) {}
         } message: {
             Text(strings.replaceConfirmationMessage)
-        }.onDisappear {
+        }
+        .alert(
+            strings.applyPlanTitle,
+            isPresented: $showApplyPlanConfirmation
+        ) {
+            Button(strings.applyPlan) {
+                guard let projectPlan else { return }
+                model.applyAIProjectPlan(projectPlan)
+                self.projectPlan = nil
+                onOpenEditor()
+            }
+            Button(strings.cancel, role: .cancel) {}
+        } message: {
+            Text(projectPlan?.summary ?? "")
+        }
+        .onDisappear {
             generationTask?.cancel()
         }
     }
 
     private var strings: AIAssistantStrings {
-        AIAssistantStrings(languageCode: model.appLanguageCode)
+        AIAssistantStrings(languageCode: model.resolvedAppLanguageCode)
     }
 
     #if canImport(FoundationModels)
@@ -137,16 +204,26 @@ private struct FoundationModelAssistantView: View {
 
             isGenerating = true
             generatedCode = ""
+            projectPlan = nil
             errorMessage = nil
 
             let language = model.selectedLanguage.name
             let currentCode = String(
                 model.activeCode.wrappedValue.suffix(4_000)
             )
+            let projectStructure = model.projectItems.map { item in
+                item.kind == .folder
+                    ? "folder: \(item.name)"
+                    : "file: \(item.name) [\(item.languageID ?? "text")]"
+            }.joined(separator: "\n")
 
             let request = """
                 Language: \(language)
-                Task: \(trimmedPrompt)
+                Mode: \(selectedMode.promptInstruction)
+                User request: \(trimmedPrompt)
+
+                Current project structure:
+                \(projectStructure)
 
                 Current editor content, if useful:
                 \(currentCode)
@@ -161,18 +238,33 @@ private struct FoundationModelAssistantView: View {
                 do {
                     let session = LanguageModelSession(
                         instructions: """
-                            You are Khyra's code assistant.
-                            Return only code in the requested language.
-                            Do not use Markdown code fences.
-                            Respect existing code when relevant.
+                            You are Khyra's precise coding assistant.
+                            Follow the selected mode exactly.
+                            For code-producing modes, return only complete code without Markdown fences.
+                            For explanation mode, return a concise explanation in the person's language.
+                            Respect existing code and never claim that unverified code is guaranteed to compile.
                             """
                     )
+
+                    if selectedMode.isAgent {
+                        let response = try await session.respond(
+                            to: request,
+                            generating: GeneratedAIProjectPlan.self
+                        )
+                        projectPlan = response.content.projectPlan
+                        return
+                    }
 
                     for try await partial in session.streamResponse(
                         to: request
                     ) {
                         try Task.checkCancellation()
-                        generatedCode = sanitize(partial.content)
+                        generatedCode =
+                            selectedMode.producesCode
+                            ? sanitize(partial.content)
+                            : partial.content.trimmingCharacters(
+                                in: .whitespacesAndNewlines
+                            )
                     }
                 } catch is CancellationError {
                     // Nutzer hat die Generierung abgebrochen.
@@ -190,18 +282,13 @@ private struct FoundationModelAssistantView: View {
     #endif
 
     private func replaceActiveCode() {
-        model.activeCode.wrappedValue = generatedCode
-        model.cursorLocation = generatedCode.utf16.count
+        model.replaceActiveCodeFromAI(generatedCode)
+        onOpenEditor()
     }
 
     private func appendToActiveCode() {
-        let existing = model.activeCode.wrappedValue
-        let separator =
-            existing.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? "" : "\n\n"
-        let updatedCode = existing + separator + generatedCode
-        model.activeCode.wrappedValue = updatedCode
-        model.cursorLocation = updatedCode.utf16.count
+        model.appendActiveCodeFromAI(generatedCode)
+        onOpenEditor()
     }
 
     private func sanitize(_ response: String) -> String {
@@ -220,8 +307,10 @@ private struct FoundationModelAssistantView: View {
 
 private struct AIAssistantWorkspace: View {
     @Binding var prompt: String
+    @Binding var mode: AIAssistantMode
 
     let generatedCode: String
+    let projectPlan: AIProjectPlan?
     let errorMessage: String?
     let isGenerating: Bool
     let languageName: String
@@ -231,6 +320,8 @@ private struct AIAssistantWorkspace: View {
     let onCancel: () -> Void
     let onReplace: () -> Void
     let onAppend: () -> Void
+    let onOpenEditor: () -> Void
+    let onApplyPlan: () -> Void
 
     var body: some View {
         ScrollView {
@@ -239,6 +330,17 @@ private struct AIAssistantWorkspace: View {
                     title: strings.headerTitle,
                     subtitle: strings.headerSubtitle
                 )
+
+                Picker(
+                    strings.modeTitle,
+                    selection: $mode
+                ) {
+                    ForEach(AIAssistantMode.allCases) { item in
+                        Text(item.title(languageCode: strings.languageCode))
+                            .tag(item)
+                    }
+                }
+                .pickerStyle(.segmented)
 
                 AIPromptComposer(
                     prompt: $prompt,
@@ -261,6 +363,14 @@ private struct AIAssistantWorkspace: View {
                     .foregroundStyle(.red)
                 }
 
+                if let projectPlan {
+                    AIProjectPlanCard(
+                        plan: projectPlan,
+                        strings: strings,
+                        onApply: onApplyPlan
+                    )
+                }
+
                 if !generatedCode.isEmpty || isGenerating {
                     AIGeneratedCodeCard(
                         code: generatedCode,
@@ -270,7 +380,10 @@ private struct AIAssistantWorkspace: View {
                         appendTitle: strings.append,
                         isGenerating: isGenerating,
                         onReplace: onReplace,
-                        onAppend: onAppend
+                        onAppend: onAppend,
+                        onOpenEditor: onOpenEditor,
+                        openEditorTitle: strings.openEditor,
+                        allowsCodeActions: mode.producesCode
                     )
                 }
             }
@@ -409,6 +522,54 @@ private struct AIPromptComposer: View {
     }
 }
 
+private struct AIProjectPlanCard: View {
+    let plan: AIProjectPlan
+    let strings: AIAssistantStrings
+    let onApply: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label(strings.projectPlan, systemImage: "folder.badge.gearshape")
+                .font(.headline)
+
+            Text(plan.summary)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            if !plan.folders.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    ForEach(plan.folders, id: \.self) { folder in
+                        Label(folder, systemImage: "folder")
+                    }
+                }
+                .font(.caption)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(plan.files) { file in
+                    HStack {
+                        Image(systemName: "doc.text")
+                        Text(file.name)
+                            .font(.system(.callout, design: .monospaced))
+                        Spacer()
+                        Text(file.languageID.uppercased())
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+
+            Button(action: onApply) {
+                Label(strings.applyPlan, systemImage: "checkmark.circle.fill")
+                    .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding()
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
+    }
+}
+
 private struct AIGeneratedCodeCard: View {
     let code: String
     let languageName: String
@@ -418,6 +579,9 @@ private struct AIGeneratedCodeCard: View {
     let isGenerating: Bool
     let onReplace: () -> Void
     let onAppend: () -> Void
+    let onOpenEditor: () -> Void
+    let openEditorTitle: String
+    let allowsCodeActions: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -443,15 +607,17 @@ private struct AIGeneratedCodeCard: View {
             }
             .frame(minHeight: 160, maxHeight: 360)
 
-            ViewThatFits {
-                HStack {
-                    actionButtons
+            if allowsCodeActions {
+                ViewThatFits {
+                    HStack {
+                        actionButtons
+                    }
+                    VStack {
+                        actionButtons
+                    }
                 }
-                VStack {
-                    actionButtons
-                }
+                .disabled(code.isEmpty || isGenerating)
             }
-            .disabled(code.isEmpty || isGenerating)
         }
         .padding()
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
@@ -466,6 +632,11 @@ private struct AIGeneratedCodeCard: View {
 
         Button(action: onAppend) {
             Label(appendTitle, systemImage: "text.append")
+        }
+        .buttonStyle(.bordered)
+
+        Button(action: onOpenEditor) {
+            Label(openEditorTitle, systemImage: "arrow.right.circle")
         }
         .buttonStyle(.bordered)
     }
@@ -487,8 +658,12 @@ private struct AIAssistantUnavailableView: View {
 private struct AIAssistantStrings {
     let languageCode: String
 
-    private var isGerman: Bool {
-        languageCode == "de"
+    private var locale: Locale {
+        Locale(identifier: languageCode)
+    }
+
+    private func localized(_ resource: String.LocalizationValue) -> String {
+        String(localized: resource, locale: locale)
     }
 
     // MARK: - Navigation
@@ -500,140 +675,138 @@ private struct AIAssistantStrings {
     // MARK: - Header
 
     var headerTitle: String {
-        isGerman
-            ? "Was möchtest du erstellen?"
-            : "What would you like to create?"
+        localized("What would you like to create?")
     }
 
     var headerSubtitle: String {
-        isGerman
-            ? "Dein intelligenter Code-Assistent. Direkt auf deinem Gerät."
-            : "Your intelligent coding assistant. Right on your device."
+        localized("Your intelligent coding assistant. Right on your device.")
     }
 
     // MARK: - Prompt
 
     var placeholder: String {
-        isGerman
-            ? "Beschreibe deine Idee, eine Funktion oder was du verbessern möchtest …"
-            : "Describe your idea, a feature, or something you'd like to improve…"
+        localized(
+            "Describe your idea, a feature, or something you'd like to improve…"
+        )
     }
 
     // MARK: - Generation
 
+    var modeTitle: String {
+        localized("Mode")
+    }
+
     var generate: String {
-        isGerman ? "Generieren" : "Generate"
+        localized("Generate")
     }
 
     var generating: String {
-        isGerman ? "Code wird erstellt …" : "Generating code…"
+        localized("Generating code…")
     }
 
     var cancel: String {
-        isGerman ? "Abbrechen" : "Cancel"
+        localized("Cancel")
     }
 
     var generationFailed: String {
-        isGerman
-            ? "Die Generierung ist fehlgeschlagen. Bitte versuche es erneut."
-            : "Generation failed. Please try again."
+        localized("Generation failed. Please try again.")
     }
 
     // MARK: - Editor Actions
 
     var replace: String {
-        isGerman ? "Code ersetzen" : "Replace code"
+        localized("Replace code")
     }
 
     var append: String {
-        isGerman ? "Code hinzufügen" : "Add code"
+        localized("Add code")
+    }
+
+    var openEditor: String {
+        localized("Open Editor")
     }
 
     var copy: String {
-        isGerman ? "Kopieren" : "Copy"
+        localized("Copy")
     }
 
     // MARK: - Confirmation
 
+    var projectPlan: String {
+        localized("Project Plan")
+    }
+
+    var applyPlan: String {
+        localized("Apply Plan")
+    }
+
+    var applyPlanTitle: String {
+        localized("Apply project changes?")
+    }
+
     var replaceConfirmationTitle: String {
-        isGerman
-            ? "Vorhandenen Code ersetzen?"
-            : "Replace existing code?"
+        localized("Replace existing code?")
     }
 
     var replaceConfirmationMessage: String {
-        isGerman
-            ? "Der aktuelle Editorinhalt wird durch den generierten Code ersetzt."
-            : "The current editor content will be replaced with the generated code."
+        localized(
+            "The current editor content will be replaced with the generated code."
+        )
     }
 
     // MARK: - Device Availability
 
     var deviceUnavailableTitle: String {
-        isGerman
-            ? "Gerät nicht unterstützt"
-            : "Device not supported"
+        localized("Device not supported")
     }
 
     var deviceUnavailableMessage: String {
-        isGerman
-            ? "Khyra AI benötigt ein Gerät mit Apple Intelligence."
-            : "Khyra AI requires a device that supports Apple Intelligence."
+        localized(
+            "Khyra AI requires a device that supports Apple Intelligence."
+        )
     }
 
     // MARK: - Apple Intelligence
 
     var appleIntelligenceDisabledTitle: String {
-        isGerman
-            ? "Apple Intelligence ist deaktiviert"
-            : "Apple Intelligence is disabled"
+        localized("Apple Intelligence is disabled")
     }
 
     var appleIntelligenceDisabledMessage: String {
-        isGerman
-            ? "Aktiviere Apple Intelligence in den Einstellungen, um Khyra AI zu verwenden."
-            : "Enable Apple Intelligence in Settings to use Khyra AI."
+        localized("Enable Apple Intelligence in Settings to use Khyra AI.")
     }
 
     // MARK: - Model Status
 
     var modelNotReadyTitle: String {
-        isGerman
-            ? "KI wird vorbereitet"
-            : "AI is getting ready"
+        localized("AI is getting ready")
     }
 
     var modelNotReadyMessage: String {
-        isGerman
-            ? "Das Sprachmodell ist noch nicht bereit. Versuche es in Kürze erneut."
-            : "The language model isn't ready yet. Please try again shortly."
+        localized(
+            "The language model isn't ready yet. Please try again shortly."
+        )
     }
 
     // MARK: - Unavailable
 
     var unavailableTitle: String {
-        isGerman
-            ? "Khyra AI nicht verfügbar"
-            : "Khyra AI unavailable"
+        localized("Khyra AI unavailable")
     }
 
     var unavailableMessage: String {
-        isGerman
-            ? "Der KI-Assistent ist momentan nicht verfügbar. Bitte versuche es später erneut."
-            : "The AI assistant is currently unavailable. Please try again later."
+        localized(
+            "The AI assistant is currently unavailable. Please try again later."
+        )
     }
 
     // MARK: - Privacy
 
     var privacyTitle: String {
-        isGerman
-            ? "Privat und lokal"
-            : "Private and on-device"
+        localized("Private and on-device")
     }
 
     var privacyMessage: String {
-        isGerman
-            ? "Die KI-Verarbeitung erfolgt direkt auf deinem Gerät."
-            : "AI processing happens directly on your device."
+        localized("AI processing happens directly on your device.")
     }
 }

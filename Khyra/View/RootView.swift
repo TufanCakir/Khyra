@@ -17,10 +17,6 @@ struct RootView: View {
         _editorModel = State(initialValue: model)
     }
 
-    private var isGerman: Bool {
-        editorModel.appLanguageCode == "de"
-    }
-
     var body: some View {
         TabView(selection: $selectedTab) {
             homeTab
@@ -33,6 +29,7 @@ struct RootView: View {
         .preferredColorScheme(
             editorModel.selectedTheme.preferredScheme
         )
+        .environment(\.locale, editorModel.appLocale)
     }
 
     // MARK: - Home
@@ -87,18 +84,20 @@ struct RootView: View {
             )
         } description: {
             Text(
-                isGerman
-                    ? "Erstelle oder öffne zuerst ein Projekt."
-                    : "Create or open a project first."
+                String(
+                    localized: "Create or open a project first.",
+                    locale: editorModel.appLocale
+                )
             )
         } actions: {
             Button {
                 openHome()
             } label: {
                 Label(
-                    isGerman
-                        ? "Zu den Projekten"
-                        : "Go to Projects",
+                    String(
+                        localized: "Go to Projects",
+                        locale: editorModel.appLocale
+                    ),
                     systemImage: "folder"
                 )
             }
@@ -112,7 +111,9 @@ struct RootView: View {
 
     private var aiTab: some View {
         NavigationStack {
-            AIAssistantView(model: editorModel)
+            AIAssistantView(model: editorModel) {
+                selectedTab = .editor
+            }
         }
         .tabItem {
             Label(

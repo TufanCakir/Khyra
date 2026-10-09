@@ -7,6 +7,10 @@
 
 import SwiftUI
 
+#if canImport(FoundationModels)
+    import FoundationModels
+#endif
+
 struct SettingsView: View {
     let model: EditorModel
 
@@ -44,6 +48,7 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 24) {
                 appearanceSection
                 languageSection
+                AISettingsSection(model: model)
                 aboutSection
                 supportSection
                 appInfoSection
@@ -86,6 +91,9 @@ struct SettingsView: View {
     private var languageSection: some View {
         settingsSection(strings.language) {
             Picker(selection: languageSelection) {
+                Text("System")
+                    .tag("system")
+
                 Text(strings.german)
                     .tag("de")
 
@@ -94,13 +102,19 @@ struct SettingsView: View {
             } label: {
                 SettingsRow(
                     title: strings.language,
-                    subtitle: model.appLanguageCode == "de"
-                        ? strings.german
-                        : strings.english,
+                    subtitle: selectedLanguageName,
                     theme: theme
                 )
             }
             .pickerStyle(.menu)
+        }
+    }
+
+    private var selectedLanguageName: String {
+        switch model.appLanguageCode {
+        case "de": strings.german
+        case "en": strings.english
+        default: String(localized: "System")
         }
     }
 
@@ -188,6 +202,74 @@ struct SettingsView: View {
         }
 
         openURL(appStoreReviewURL)
+    }
+}
+
+private struct AISettingsSection: View {
+    let model: EditorModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Khyra AI")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(model.selectedTheme.secondaryText)
+
+            HStack(spacing: 12) {
+                Image(systemName: "apple.intelligence")
+                    .foregroundStyle(statusColor)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(statusTitle)
+                        .font(.body.weight(.medium))
+                    Text(statusMessage)
+                        .font(.caption)
+                        .foregroundStyle(model.selectedTheme.secondaryText)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding()
+            .background(
+                model.selectedTheme.panelBackground,
+                in: RoundedRectangle(cornerRadius: 12)
+            )
+        }
+    }
+
+    private var statusTitle: String {
+        guard #available(iOS 26.0, *) else {
+            return localized("Requires iOS 26")
+        }
+        #if canImport(FoundationModels)
+            switch SystemLanguageModel.default.availability {
+            case .available:
+                return localized("Ready")
+            case .unavailable(.deviceNotEligible):
+                return localized("Device not supported")
+            case .unavailable(.appleIntelligenceNotEnabled):
+                return localized("Apple Intelligence disabled")
+            case .unavailable(.modelNotReady):
+                return localized("Model is getting ready")
+            case .unavailable:
+                return localized("Unavailable")
+            }
+        #else
+            return localized("Unavailable")
+        #endif
+    }
+
+    private var statusMessage: String {
+        localized("Processing happens privately on device.")
+    }
+
+    private var statusColor: Color {
+        statusTitle == localized("Ready")
+            ? model.selectedTheme.success
+            : model.selectedTheme.warning
+    }
+
+    private func localized(_ resource: String.LocalizationValue) -> String {
+        String(localized: resource, locale: model.appLocale)
     }
 }
 
