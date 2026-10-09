@@ -325,6 +325,8 @@ private struct AIAssistantWorkspace: View {
     let onOpenEditor: () -> Void
     let onApplyPlan: () -> Void
 
+    @FocusState private var isPromptFocused: Bool
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
@@ -346,14 +348,12 @@ private struct AIAssistantWorkspace: View {
 
                 AIPromptComposer(
                     prompt: $prompt,
+                    isFocused: $isPromptFocused,
                     placeholder: strings.placeholder,
                     buttonTitle: strings.generate,
                     cancelTitle: strings.languageCode == "de"
                         ? "Abbrechen"
                         : "Cancel",
-                    dismissKeyboardTitle: strings.languageCode == "de"
-                        ? "Tastatur schließen"
-                        : "Dismiss Keyboard",
                     theme: theme,
                     isGenerating: isGenerating,
                     onGenerate: onGenerate,
@@ -404,6 +404,14 @@ private struct AIAssistantWorkspace: View {
             }
             .padding()
         }
+        .scrollDismissesKeyboard(.interactively)
+        .keyboardDismissToolbar(
+            accessibilityTitle: strings.languageCode == "de"
+                ? "Tastatur schließen"
+                : "Dismiss Keyboard"
+        ) {
+            isPromptFocused = false
+        }
     }
 }
 
@@ -432,17 +440,15 @@ private struct AIAssistantHeader: View {
 
 private struct AIPromptComposer: View {
     @Binding var prompt: String
+    @FocusState.Binding var isFocused: Bool
 
     let placeholder: String
     let buttonTitle: String
     let cancelTitle: String
-    let dismissKeyboardTitle: String
     let theme: EditorTheme
     let isGenerating: Bool
     let onGenerate: () -> Void
     let onCancel: () -> Void
-
-    @FocusState private var isFocused: Bool
 
     private var isPromptEmpty: Bool {
         prompt.trimmingCharacters(
@@ -452,13 +458,26 @@ private struct AIPromptComposer: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
+
             promptField
+
+            if isFocused {
+                HStack {
+                    Spacer()
+
+                    Button {
+                        isFocused = false
+                    } label: {
+                        Label(
+                            "Fertig",
+                            systemImage: "keyboard.chevron.compact.down"
+                        )
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+
             actionButton
-        }
-        .keyboardDismissToolbar(
-            accessibilityTitle: dismissKeyboardTitle
-        ) {
-            isFocused = false
         }
     }
 

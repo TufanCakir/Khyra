@@ -8,24 +8,31 @@
 import SwiftUI
 
 private struct KeyboardDismissToolbarModifier: ViewModifier {
+
     let accessibilityTitle: String
     let dismiss: () -> Void
 
     func body(content: Content) -> some View {
-        content.toolbar {
-            ToolbarItemGroup(placement: .keyboard) {
-                Spacer()
+        content
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
 
-                Button(action: dismiss) {
-                    Image(systemName: "keyboard.chevron.compact.down")
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(
+                            systemName: "keyboard.chevron.compact.down"
+                        )
+                    }
+                    .accessibilityLabel(accessibilityTitle)
                 }
-                .accessibilityLabel(accessibilityTitle)
             }
-        }
     }
 }
 
 extension View {
+
     func keyboardDismissToolbar(
         accessibilityTitle: String,
         dismiss: @escaping () -> Void
