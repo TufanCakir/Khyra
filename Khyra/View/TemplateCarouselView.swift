@@ -1,5 +1,5 @@
 //
-//  ExtensionView.swift
+//  TemplateCarouselView.swift
 //  Khyra
 //
 //  Created by Tufan Cakir on 31.07.26.
@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct ExtensionView: View {
+struct TemplateCarouselView: View {
     let templates: [ProjectTemplate]
     let theme: EditorTheme
     let onSelect: (ProjectTemplate) -> Void
@@ -253,7 +253,7 @@ struct ProjectTemplateCard: View {
 // MARK: - Preview
 
 #Preview {
-    ExtensionView(
+    TemplateCarouselView(
         templates: ProjectTemplate.catalog(
             from: LanguageStore.load()
         ),

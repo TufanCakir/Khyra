@@ -90,6 +90,7 @@ private struct DocumentationLibraryContent: View {
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
+        .documentationTabBarClearance()
         .overlay {
             if guides.isEmpty {
                 ProgressView()
@@ -320,6 +321,7 @@ private struct DocumentationLanguageScreen: View {
         }
         .listStyle(.insetGrouped)
         .scrollContentBackground(.hidden)
+        .documentationTabBarClearance()
         .background(theme.background)
         .navigationTitle(guide.name)
         .navigationBarTitleDisplayMode(.inline)
@@ -364,6 +366,7 @@ private struct DocumentationTopicView: View {
             }
         }
         .scrollContentBackground(.hidden)
+        .documentationTabBarClearance()
         .background(theme.background)
         .navigationTitle(topic.title)
         .navigationBarTitleDisplayMode(.inline)
@@ -387,6 +390,12 @@ private struct DocumentationTopicView: View {
                 .accessibilityLabel(editorTitle)
             }
         }
+    }
+}
+
+extension View {
+    fileprivate func documentationTabBarClearance() -> some View {
+        safeAreaPadding(.bottom, 88)
     }
 }
 

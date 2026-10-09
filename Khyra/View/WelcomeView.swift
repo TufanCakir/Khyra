@@ -11,6 +11,7 @@ import SwiftUI
 struct WelcomeView: View {
     let model: EditorModel
     let navigate: (AppRoute) -> Void
+    let openEditor: () -> Void
     @Environment(\.requestReview) private var requestReview
     @State private var library = ProjectLibraryViewModel()
     @State private var activeModal: WelcomeModal?
@@ -42,7 +43,7 @@ struct WelcomeView: View {
                     onCreate: {
                         library.reload()
                         activeModal = nil
-                        navigate(.editor)
+                        openEditor()
                         requestReviewAfterFirstProjectCreation()
                     },
                     onClose: {
@@ -71,7 +72,7 @@ struct WelcomeView: View {
                     theme: model.selectedTheme,
                     onOpen: {
                         activeModal = nil
-                        navigate(.editor)
+                        openEditor()
                     },
                     onClose: { activeModal = nil }
                 )
@@ -205,7 +206,7 @@ struct TemplatePickerModal: View {
 
     var body: some View {
         ThemedModal(title: strings.templates, theme: theme, onClose: onClose) {
-            ExtensionView(
+            TemplateCarouselView(
                 templates: ProjectTemplate.catalog(from: model.languageStore),
                 theme: theme
             ) { template in
@@ -493,7 +494,7 @@ struct PlaygroundTemplatePickerModal: View {
 
     var body: some View {
         ThemedModal(title: strings.playground, theme: theme, onClose: onClose) {
-            ExtensionView(
+            TemplateCarouselView(
                 templates: ProjectTemplate.catalog(from: model.languageStore),
                 theme: theme
             ) { template in
@@ -650,6 +651,6 @@ struct ProjectLibraryRow: View {
 
 #Preview {
     NavigationStack {
-        WelcomeView(model: EditorModel()) { _ in }
+        WelcomeView(model: EditorModel(), navigate: { _ in }, openEditor: {})
     }
 }

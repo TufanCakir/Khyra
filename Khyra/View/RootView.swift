@@ -38,7 +38,8 @@ struct RootView: View {
         NavigationStack(path: $navigationPath) {
             WelcomeView(
                 model: editorModel,
-                navigate: navigate
+                navigate: navigate,
+                openEditor: openEditor
             )
             .navigationDestination(for: AppRoute.self) { route in
                 destination(for: route)
@@ -59,7 +60,7 @@ struct RootView: View {
         NavigationStack {
             Group {
                 if editorModel.hasActiveProject {
-                    HomeView(model: editorModel)
+                    EditorWorkspaceView(model: editorModel)
                 } else {
                     projectRequiredView
                 }
@@ -159,13 +160,6 @@ struct RootView: View {
     @ViewBuilder
     private func destination(for route: AppRoute) -> some View {
         switch route {
-        case .editor:
-            if editorModel.hasActiveProject {
-                HomeView(model: editorModel)
-            } else {
-                projectRequiredView
-            }
-
         case .preview:
             if editorModel.hasActiveProject {
                 WebPreviewScreen(model: editorModel)
@@ -186,18 +180,6 @@ struct RootView: View {
 
     private func navigate(to route: AppRoute) {
         switch route {
-        case .editor:
-            guard editorModel.hasActiveProject else {
-                openHome()
-                return
-            }
-
-            // Der Editor besitzt einen eigenen Tab.
-            // Deshalb keinen zweiten Editor auf den
-            // Home-NavigationStack legen.
-            navigationPath.removeAll()
-            selectedTab = .editor
-
         case .preview:
             guard editorModel.hasActiveProject else {
                 openHome()
@@ -211,6 +193,15 @@ struct RootView: View {
             selectedTab = .home
             navigationPath.append(route)
         }
+    }
+
+    private func openEditor() {
+        guard editorModel.hasActiveProject else {
+            openHome()
+            return
+        }
+        navigationPath.removeAll()
+        selectedTab = .editor
     }
 
     private func openHome() {
@@ -230,7 +221,6 @@ private enum AppTab: Hashable {
 }
 
 enum AppRoute: Hashable {
-    case editor
     case preview
     case playground(String?)
 }

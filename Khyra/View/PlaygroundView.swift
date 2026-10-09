@@ -7,252 +7,40 @@
 
 import SwiftUI
 
+/// A temporary project that uses the same editor workspace as saved projects.
+///
+/// Keeping one workspace implementation prevents Playground features and
+/// toolbars from drifting away from the main editor.
 struct PlaygroundView: View {
     let template: ProjectTemplate?
+
     @State private var model: EditorModel
     @State private var didLoadTemplate = false
-    @State private var showSavedToast = false
-    @State private var showConsoleSheet = false
-    @State private var editorFontSize: CGFloat = 15
 
     init(template: ProjectTemplate? = nil) {
         self.template = template
         _model = State(initialValue: EditorModel())
     }
 
-    private var selectedThemeID: Binding<String> {
-        Binding(
-            get: { model.selectedThemeID },
-            set: { model.selectedThemeID = $0 }
-        )
-    }
-
-    private var selectedLanguageID: Binding<String> {
-        Binding(
-            get: { model.selectedLanguageID },
-            set: { model.selectLanguage($0) }
-        )
-    }
-
-    private var cursorLocation: Binding<Int> {
-        Binding(
-            get: { model.cursorLocation },
-            set: { model.cursorLocation = $0 }
-        )
-    }
-
-    private var selectionLength: Binding<Int> {
-        Binding(
-            get: { model.editorSelectionLength },
-            set: { model.editorSelectionLength = $0 }
-        )
-    }
-
     var body: some View {
-        @Bindable var model = model
-
-        ZStack {
-            model.selectedTheme.background
-                .ignoresSafeArea()
-
-            VStack(spacing: 0) {
-                LanguageTabsView(
-                    languages: model.languageStore.languages,
-                    selectedLanguageID: selectedLanguageID,
-                    theme: model.selectedTheme,
-                    onSelect: model.selectLanguage
-                )
-
-                EditorHeaderView(
-                    language: model.selectedLanguage,
-                    issueCount: model.issues.count,
-                    lineCount: model.lineCount,
-                    theme: model.selectedTheme,
-                    strings: model.appStrings
-                )
-
-                SuggestionsBarView(
-                    suggestions: model.suggestions(),
-                    theme: model.selectedTheme,
-                    onSelect: model.applySuggestion
-                )
-
-                CodeEditorView(
-                    text: $model.activeCodeText,
-                    cursorLocation: cursorLocation,
-                    selectionLength: selectionLength,
-                    language: model.selectedLanguage,
-                    theme: model.selectedTheme,
-                    wrapsLongLines: true,
-                    fontSize: $editorFontSize,
-                    onFocusChange: { _ in }
-                )
-                .background(model.selectedTheme.editorBackground)
-
-                if model.showConsole {
-                    ConsoleView(
-                        issues: model.issues,
-                        theme: model.selectedTheme,
-                        strings: model.appStrings,
-                        versions: model.codeVersions,
-                        onToggle: {
-                            withAnimation(.snappy) {
-                                model.showConsole.toggle()
-                            }
-                        },
-                        onSaveVersion: { name in
-                            model.saveCodeVersion(title: name)
-                            showSavedFeedback()
-                        },
-                        onRestoreVersion: { version in
-                            model.restoreCodeVersion(version)
-                            showSavedFeedback()
-                        },
-                        onDeleteVersion: { version in
-                            model.deleteCodeVersion(version)
-                        },
-                        onIssueSelect: { issue in
-                            model.jumpToIssue(issue)
-                        },
-                        onOpenSheet: {
-                            showConsoleSheet = true
-                        },
-                        languageForVersion: { version in
-                            model.language(for: version.languageID)
-                        }
-                    )
-                    .frame(height: 190)
-                } else {
-                    ConsoleCollapsedBar(
-                        theme: model.selectedTheme,
-                        strings: model.appStrings
-                    ) {
-                        withAnimation(.snappy) {
-                            model.showConsole.toggle()
-                        }
-                    }
-                }
+        EditorWorkspaceView(model: model)
+            .navigationTitle("")
+            .navigationBarTitleDisplayMode(.inline)
+            .onAppear {
+                loadTemplateIfNeeded()
             }
-
-            if showSavedToast {
-                VStack {
-                    Spacer()
-                    SaveToast(
-                        theme: model.selectedTheme,
-                        strings: model.appStrings
-                    )
-                    .padding(.bottom, 92)
-                }
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-        }
-        .sheet(isPresented: $showConsoleSheet) {
-            ConsoleView(
-                issues: model.issues,
-                theme: model.selectedTheme,
-                strings: model.appStrings,
-                versions: model.codeVersions,
-                onToggle: {
-                    showConsoleSheet = false
-                },
-                onSaveVersion: { name in
-                    model.saveCodeVersion(title: name)
-                    showSavedFeedback()
-                },
-                onRestoreVersion: { version in
-                    model.restoreCodeVersion(version)
-                    showSavedFeedback()
-                },
-                onDeleteVersion: { version in
-                    model.deleteCodeVersion(version)
-                },
-                onIssueSelect: { issue in
-                    model.jumpToIssue(issue)
-                },
-                languageForVersion: { version in
-                    model.language(for: version.languageID)
-                }
-            )
-            .presentationDetents([.medium, .large])
-            .presentationDragIndicator(.visible)
-            .presentationBackground(model.selectedTheme.background)
-            .preferredColorScheme(model.selectedTheme.preferredScheme)
-        }
-        .foregroundStyle(model.selectedTheme.primaryText)
-        .navigationTitle(template?.title ?? "Playground")
-        .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            guard !didLoadTemplate else { return }
-            didLoadTemplate = true
-            if let template {
-                model.createProject(template: template)
-            } else {
-                model.seedDocumentsIfNeeded()
-            }
-        }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    model.insertBoilerplate()
-                } label: {
-                    Image(systemName: "wand.and.stars")
-                }
-                .accessibilityLabel(model.appStrings.insertBoilerplate)
-            }
-
-            ToolbarItem(placement: .topBarTrailing) {
-                ShareLink(item: model.activeCode.wrappedValue) {
-                    Image(systemName: "square.and.arrow.up")
-                }
-                .accessibilityLabel(model.appStrings.shareCode)
-            }
-
-            ToolbarItem(placement: .topBarTrailing) {
-                Menu {
-                    Picker("Theme", selection: selectedThemeID) {
-                        ForEach(EditorTheme.all) { theme in
-                            Text(theme.name).tag(theme.id)
-                        }
-                    }
-
-                    Divider()
-
-                    Button {
-                        model.formatActiveDocument()
-                    } label: {
-                        Label(
-                            model.appStrings.format,
-                            systemImage: "text.alignleft"
-                        )
-                    }
-
-                    Button(role: .destructive) {
-                        model.activeCode.wrappedValue = ""
-                        model.cursorLocation = 0
-                    } label: {
-                        Label(model.appStrings.delete, systemImage: "trash")
-                    }
-                } label: {
-                    Image(systemName: "ellipsis.circle")
-                }
-                .accessibilityLabel(model.appStrings.moreActions)
-            }
-        }
-        .preferredColorScheme(model.selectedTheme.preferredScheme)
     }
 
-    private func showSavedFeedback() {
-        withAnimation(.snappy) {
-            showSavedToast = true
-        }
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 1_200_000_000)
-            withAnimation(.snappy) {
-                showSavedToast = false
-            }
+    private func loadTemplateIfNeeded() {
+        guard !didLoadTemplate else { return }
+        didLoadTemplate = true
+
+        if let template {
+            model.createProject(template: template)
+        } else {
+            model.seedDocumentsIfNeeded()
         }
     }
-
 }
 
 #Preview {

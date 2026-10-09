@@ -1,5 +1,5 @@
 //
-//  HomeView.swift
+//  EditorWorkspaceView.swift
 //  Khyra
 //
 //  Created by Tufan Cakir on 31.07.26.
@@ -8,7 +8,7 @@
 import SwiftUI
 import UIKit
 
-struct HomeView: View {
+struct EditorWorkspaceView: View {
     let model: EditorModel
     @State private var snippetDraft: SnippetEditorDraft?
     @State private var snippetCursorLocation = 0
@@ -32,13 +32,6 @@ struct HomeView: View {
 
     init(model: EditorModel) {
         self.model = model
-    }
-
-    private var selectedThemeID: Binding<String> {
-        Binding(
-            get: { model.selectedThemeID },
-            set: { model.selectedThemeID = $0 }
-        )
     }
 
     private var selectedLanguageID: Binding<String> {
@@ -105,7 +98,7 @@ struct HomeView: View {
                         )
                     }
 
-                    CodeEditorView(
+                    CodeEditorTextView(
                         text: $model.activeCodeText,
                         cursorLocation: $model.cursorLocation,
                         selectionLength: $model.editorSelectionLength,
@@ -375,9 +368,6 @@ struct HomeView: View {
                         )
                     }
 
-                    NavigationLink(value: AppRoute.preview) {
-                        Label(model.appStrings.preview, systemImage: "safari")
-                    }
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
@@ -791,7 +781,7 @@ struct SnippetEditorModal: View {
                         in: RoundedRectangle(cornerRadius: 8)
                     )
 
-                CodeEditorView(
+                CodeEditorTextView(
                     text: $draft.code,
                     cursorLocation: $cursorLocation,
                     selectionLength: $selectionLength,
@@ -1425,7 +1415,7 @@ struct ProjectItemRow: View {
     }
 }
 
-private final class CodeTextView: UITextView {
+private final class CodeEditorUIKitTextView: UITextView {
     var onToggleComment: (() -> Void)?
 
     override var keyCommands: [UIKeyCommand]? {
@@ -1443,7 +1433,7 @@ private final class CodeTextView: UITextView {
     }
 }
 
-struct CodeEditorView: UIViewRepresentable {
+struct CodeEditorTextView: UIViewRepresentable {
     @Binding var text: String
     @Binding var cursorLocation: Int
     @Binding var selectionLength: Int
@@ -1455,7 +1445,7 @@ struct CodeEditorView: UIViewRepresentable {
     let onFocusChange: (Bool) -> Void
 
     func makeUIView(context: Context) -> UITextView {
-        let textView = CodeTextView()
+        let textView = CodeEditorUIKitTextView()
         textView.delegate = context.coordinator
         textView.onToggleComment = { [weak coordinator = context.coordinator] in
             coordinator?.toggleCommentFromKeyboard()
@@ -1529,13 +1519,24 @@ struct CodeEditorView: UIViewRepresentable {
     }
 
     private func configureLineWrapping(for textView: UITextView) {
-        textView.textContainer.widthTracksTextView = wrapsLongLines
         textView.alwaysBounceHorizontal = !wrapsLongLines
         textView.showsHorizontalScrollIndicator = !wrapsLongLines
-        textView.textContainer.size = CGSize(
-            width: wrapsLongLines ? 0 : CGFloat.greatestFiniteMagnitude,
-            height: CGFloat.greatestFiniteMagnitude
-        )
+
+        if wrapsLongLines {
+            textView.textContainer.widthTracksTextView = true
+            textView.textContainer.lineBreakMode = .byWordWrapping
+            textView.textContainer.size = CGSize(
+                width: max(textView.bounds.width, 1),
+                height: CGFloat.greatestFiniteMagnitude
+            )
+        } else {
+            textView.textContainer.widthTracksTextView = false
+            textView.textContainer.lineBreakMode = .byClipping
+            textView.textContainer.size = CGSize(
+                width: CGFloat.greatestFiniteMagnitude,
+                height: CGFloat.greatestFiniteMagnitude
+            )
+        }
     }
 
     private func applyHighlight(to textView: UITextView) {
@@ -1611,7 +1612,7 @@ struct CodeEditorView: UIViewRepresentable {
             return Set(tagNames.split(separator: " ").map(String.init))
         }()
 
-        var parent: CodeEditorView
+        var parent: CodeEditorTextView
         var lastLanguageID: String
         var lastThemeID: String
         var lastFontSize: CGFloat
@@ -1619,7 +1620,7 @@ struct CodeEditorView: UIViewRepresentable {
         private weak var textView: UITextView?
         private weak var keyboardToolbar: UIToolbar?
 
-        init(parent: CodeEditorView) {
+        init(parent: CodeEditorTextView) {
             self.parent = parent
             self.lastLanguageID = parent.language.id
             self.lastThemeID = parent.theme.id
@@ -2930,6 +2931,6 @@ struct EditorTheme: Identifiable, Equatable {
 
 #Preview {
     NavigationStack {
-        HomeView(model: EditorModel())
+        EditorWorkspaceView(model: EditorModel())
     }
 }

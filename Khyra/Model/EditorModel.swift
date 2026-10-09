@@ -367,12 +367,34 @@ final class EditorModel {
     }
 
     func selectLanguage(_ languageID: String) {
-        selectedProjectItemID = nil
-        selectedLanguageID = languageID
-        seedDocumentsIfNeeded()
+        guard
+            let language = languageStore.languages.first(where: {
+                $0.id == languageID
+            })
+        else {
+            return
+        }
+
+        if hasActiveProject {
+            if let item = projectItems.first(where: {
+                $0.kind == .file && $0.languageID == languageID
+            }) {
+                selectProjectItem(item)
+                return
+            }
+
+            addFile(language: language, name: language.fileExtension)
+            let starterCode = language.boilerplateCode ?? language.sampleCode
+            setActiveCode(starterCode)
+        } else {
+            selectedProjectItemID = nil
+            selectedLanguageID = languageID
+            seedDocumentsIfNeeded()
+        }
+
         cursorLocation = min(
             cursorLocation,
-            activeCode.wrappedValue.utf16.count
+            activeCodeText.utf16.count
         )
         reloadVersions()
     }
