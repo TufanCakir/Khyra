@@ -128,6 +128,16 @@ struct AppStrings: Decodable {
     let keywords: String
     let whatDoesItDo: String
     let buildingBlocks: String
+    // MARK: - AI Assistant
+
+    let aiHeaderTitle: String
+    let aiHeaderSubtitle: String
+    let aiMode: String
+    let aiGenerate: String
+    let aiGenerating: String
+    let aiPlaceholder: String
+    let aiOnDeviceProcessing: String
+    let aiGenerationFailed: String
 
     static func load(
         languageCode: String = Locale.current.language.languageCode?.identifier
@@ -277,6 +287,16 @@ struct AppStrings: Decodable {
         reference: "Reference",
         keywords: "Keywords",
         whatDoesItDo: "What does it do?",
-        buildingBlocks: "Building blocks"
+        buildingBlocks: "Building blocks",
+        
+
+        aiHeaderTitle: "What would you like to create?",
+        aiHeaderSubtitle: "Your intelligent coding assistant. Right on your device.",
+        aiMode: "Mode",
+        aiGenerate: "Generate",
+        aiGenerating: "Generating code…",
+        aiPlaceholder: "Describe your idea, a feature, or something you'd like to improve…",
+        aiOnDeviceProcessing: "AI processing happens directly on your device.",
+        aiGenerationFailed: "Generation failed. Please try again."
     )
 }

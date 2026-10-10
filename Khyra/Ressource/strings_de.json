@@ -128,5 +128,15 @@
     "reference": "Nachschlagen",
     "keywords": "Keywords",
     "whatDoesItDo": "Was macht das?",
-    "buildingBlocks": "Bausteine"
+    "buildingBlocks": "Bausteine",
+    
+    "aiHeaderTitle": "Was möchtest du erstellen?",
+    "aiHeaderSubtitle": "Dein intelligenter Coding-Assistent. Direkt auf deinem Gerät.",
+    "aiMode": "Modus",
+    "aiGenerate": "Generieren",
+    "aiGenerating": "Code generieren …",
+    "aiPlaceholder": "Beschreibe deine Idee, eine Funktion oder etwas, das du verbessern möchtest …",
+    "aiOnDeviceProcessing": "Die KI-Verarbeitung erfolgt direkt auf deinem Gerät.",
+    "aiGenerationFailed": "Generierung fehlgeschlagen. Versuche es erneut."
+  
 }

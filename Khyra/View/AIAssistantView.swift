@@ -21,13 +21,19 @@ enum AIAssistantMode: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     func title(languageCode: String) -> String {
-        let locale = Locale(identifier: languageCode)
+        let german = languageCode == "de"
+
         switch self {
-        case .generate: return String(localized: "Create", locale: locale)
-        case .improve: return String(localized: "Improve", locale: locale)
-        case .repair: return String(localized: "Repair", locale: locale)
-        case .explain: return String(localized: "Explain", locale: locale)
-        case .agent: return String(localized: "Agent", locale: locale)
+        case .generate:
+            return german ? "Erstellen" : "Create"
+        case .improve:
+            return german ? "Verbessern" : "Improve"
+        case .repair:
+            return german ? "Reparieren" : "Repair"
+        case .explain:
+            return german ? "Erklären" : "Explain"
+        case .agent:
+            return "Agent"
         }
     }
 
@@ -124,7 +130,7 @@ private struct FoundationModelAssistantView: View {
                         onOpenEditor: onOpenEditor,
                         onApplyPlan: {
                             showApplyPlanConfirmation = true
-                        }
+                        }, appStrings: model.appStrings
                     )
                 case .unavailable(.deviceNotEligible):
                     AIAssistantUnavailableView(
@@ -190,6 +196,10 @@ private struct FoundationModelAssistantView: View {
 
     private var strings: AIAssistantStrings {
         AIAssistantStrings(languageCode: model.resolvedAppLanguageCode)
+    }
+    
+    private var appStrings: AppStrings {
+        model.appStrings
     }
 
     #if canImport(FoundationModels)
@@ -271,7 +281,7 @@ private struct FoundationModelAssistantView: View {
                     // Nutzer hat die Generierung abgebrochen.
                 } catch {
                     guard !Task.isCancelled else { return }
-                    errorMessage = strings.generationFailed
+                    errorMessage = appStrings.aiGenerationFailed
                 }
             }
         }
@@ -324,6 +334,8 @@ private struct AIAssistantWorkspace: View {
     let onAppend: () -> Void
     let onOpenEditor: () -> Void
     let onApplyPlan: () -> Void
+    
+    let appStrings: AppStrings
 
     @FocusState private var isPromptFocused: Bool
 
@@ -331,12 +343,12 @@ private struct AIAssistantWorkspace: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 AIAssistantHeader(
-                    title: strings.headerTitle,
-                    subtitle: strings.headerSubtitle
+                    title: appStrings.aiHeaderTitle,
+                    subtitle: appStrings.aiHeaderSubtitle
                 )
 
                 Picker(
-                    strings.modeTitle,
+                    appStrings.aiMode,
                     selection: $mode
                 ) {
                     ForEach(AIAssistantMode.allCases) { item in
@@ -349,11 +361,9 @@ private struct AIAssistantWorkspace: View {
                 AIPromptComposer(
                     prompt: $prompt,
                     isFocused: $isPromptFocused,
-                    placeholder: strings.placeholder,
-                    buttonTitle: strings.generate,
-                    cancelTitle: strings.languageCode == "de"
-                        ? "Abbrechen"
-                        : "Cancel",
+                    placeholder: appStrings.aiPlaceholder,
+                    buttonTitle: appStrings.aiGenerate,
+                    cancelTitle: appStrings.cancel,
                     theme: theme,
                     isGenerating: isGenerating,
                     onGenerate: onGenerate,
@@ -379,8 +389,8 @@ private struct AIAssistantWorkspace: View {
 
                 if isGenerating && generatedCode.isEmpty {
                     AIGenerationStatusCard(
-                        title: strings.generating,
-                        message: strings.onDeviceProcessing,
+                        title: appStrings.aiGenerating,
+                        message: appStrings.aiOnDeviceProcessing,
                         theme: theme
                     )
                 }
