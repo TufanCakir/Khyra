@@ -20,7 +20,7 @@ struct EditorWorkspaceView: View {
     @State private var focusModeEnabled = false
     @State private var wrapsLongLines = true
     @State private var editorFontSize: CGFloat = 15
-    @State private var showFindReplace = false
+    @State private var findRequestID = 0
     @State private var showGoToLine = false
     @State private var showRunPreview = false
     @State private var showAISelection = false
@@ -29,6 +29,7 @@ struct EditorWorkspaceView: View {
     @State private var workspacePanels = EditorWorkspacePanel.allCases
     @State private var showsSuggestions = true
     @State private var showsInlineDiagnostics = true
+    @State private var exportURLs: ProjectExportURLs?
 
     init(model: EditorModel) {
         self.model = model
@@ -107,6 +108,18 @@ struct EditorWorkspaceView: View {
                         wrapsLongLines: wrapsLongLines,
                         fontSize: $editorFontSize,
                         issues: model.issues,
+                        navigationID: model.editorNavigationID,
+                        findRequestID: findRequestID,
+                        onTab: {
+                            if model.advanceSnippetPlaceholder() { return true }
+                            guard let suggestion = model.suggestions().first
+                            else {
+                                return false
+                            }
+                            model.applySuggestion(suggestion)
+                            return true
+                        },
+                        onAIAction: openAIAction,
                         onFocusChange: { isEditorFocused = $0 }
                     )
                     .background(model.selectedTheme.editorBackground)
@@ -119,14 +132,13 @@ struct EditorWorkspaceView: View {
                             onSelect: model.jumpToIssue,
                             onQuickFix: { issue in
                                 if !model.applyQuickFix(for: issue) {
+                                    model.selectLine(for: issue)
                                     selectedAIAction = .repair
                                     showAISelection = true
                                 }
                             },
                             onAIFix: { issue in
-                                model.jumpToIssue(issue)
-                                model.editorSelectionLength =
-                                    lineLength(for: issue.line)
+                                model.selectLine(for: issue)
                                 selectedAIAction = .repair
                                 showAISelection = true
                             }
@@ -231,6 +243,10 @@ struct EditorWorkspaceView: View {
             }
         }
         .foregroundStyle(model.selectedTheme.primaryText)
+        .toolbar(
+            isEditorFocused ? .hidden : .visible,
+            for: .tabBar
+        )
         .onAppear {
             model.seedDocumentsIfNeeded()
         }
@@ -267,7 +283,9 @@ struct EditorWorkspaceView: View {
             }
 
             ToolbarItem(placement: .topBarTrailing) {
-                ShareLink(item: model.activeCode.wrappedValue) {
+                Button {
+                    exportURLs = model.prepareExportURLs()
+                } label: {
                     Image(systemName: "square.and.arrow.up")
                 }
                 .accessibilityLabel(model.appStrings.shareCode)
@@ -297,7 +315,7 @@ struct EditorWorkspaceView: View {
                     Divider()
 
                     Button {
-                        showFindReplace = true
+                        findRequestID &+= 1
                     } label: {
                         Label(
                             model.resolvedAppLanguageCode == "de"
@@ -347,6 +365,7 @@ struct EditorWorkspaceView: View {
                     }
 
                     Button {
+                        model.selectedDiagnostic = nil
                         selectedAIAction = .explain
                         showAISelection = true
                     } label: {
@@ -373,6 +392,14 @@ struct EditorWorkspaceView: View {
                 }
                 .accessibilityLabel(model.appStrings.moreActions)
             }
+        }
+        .sheet(item: $exportURLs) { urls in
+            ProjectExportSheet(
+                urls: urls,
+                isGerman: model.resolvedAppLanguageCode == "de",
+                theme: model.selectedTheme
+            )
+            .presentationDetents([.medium])
         }
         .sheet(isPresented: $showConsoleSheet) {
             ConsoleView(
@@ -407,15 +434,6 @@ struct EditorWorkspaceView: View {
             .presentationBackground(model.selectedTheme.background)
             .preferredColorScheme(model.selectedTheme.preferredScheme)
         }
-        .sheet(isPresented: $showFindReplace) {
-            EditorSearchToolsView(
-                code: model.activeCode,
-                cursorLocation: cursorLocation,
-                selectionLength: selectionLength,
-                isGerman: model.resolvedAppLanguageCode == "de"
-            )
-            .preferredColorScheme(model.selectedTheme.preferredScheme)
-        }
         .sheet(isPresented: $showGoToLine) {
             GoToLineView(
                 cursorLocation: cursorLocation,
@@ -438,7 +456,10 @@ struct EditorWorkspaceView: View {
             }
             .preferredColorScheme(model.selectedTheme.preferredScheme)
         }
-        .sheet(isPresented: $showAISelection) {
+        .sheet(
+            isPresented: $showAISelection,
+            onDismiss: { model.selectedDiagnostic = nil }
+        ) {
             EditorAISelectionView(
                 model: model,
                 initialAction: selectedAIAction
@@ -456,14 +477,6 @@ struct EditorWorkspaceView: View {
         .preferredColorScheme(model.selectedTheme.preferredScheme)
     }
 
-    private func lineLength(for line: Int) -> Int {
-        let lines = model.activeCode.wrappedValue.components(
-            separatedBy: .newlines
-        )
-        guard lines.indices.contains(line - 1) else { return 0 }
-        return lines[line - 1].utf16.count
-    }
-
     private func openNewSnippetEditor() {
         let currentCode = model.activeCode.wrappedValue
         let fallback =
@@ -478,6 +491,13 @@ struct EditorWorkspaceView: View {
             existingSnippet: nil
         )
         snippetCursorLocation = snippetDraft?.code.utf16.count ?? 0
+    }
+
+    private func openAIAction(_ action: EditorAIAction) {
+        guard model.editorSelectionLength > 0 else { return }
+        model.selectedDiagnostic = nil
+        selectedAIAction = action
+        showAISelection = true
     }
 
     private func openSnippetEditor(_ snippet: UserSnippet) {
@@ -789,6 +809,10 @@ struct SnippetEditorModal: View {
                     theme: theme,
                     wrapsLongLines: true,
                     fontSize: .constant(15),
+                    navigationID: 0,
+                    findRequestID: 0,
+                    onTab: { false },
+                    onAIAction: { _ in },
                     onFocusChange: { _ in }
                 )
                 .frame(height: 230)
@@ -1415,8 +1439,105 @@ struct ProjectItemRow: View {
     }
 }
 
+private struct ProjectExportSheet: View {
+    let urls: ProjectExportURLs
+    let isGerman: Bool
+    let theme: EditorTheme
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 14) {
+                if let activeFileURL = urls.activeFileURL {
+                    ShareLink(item: activeFileURL) {
+                        exportRow(
+                            title: isGerman
+                                ? "Aktuelle Datei exportieren"
+                                : "Export Current File",
+                            subtitle: activeFileURL.lastPathComponent,
+                            systemImage: "doc"
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                ShareLink(item: urls.projectURL) {
+                    exportRow(
+                        title: isGerman
+                            ? "Gesamtes Projekt exportieren"
+                            : "Export Entire Project",
+                        subtitle: isGerman
+                            ? "Ordnerstruktur und alle Dateien"
+                            : "Folder structure and all files",
+                        systemImage: "folder"
+                    )
+                }
+                .buttonStyle(.plain)
+
+                Text(
+                    isGerman
+                        ? "Swift-Projekte enthalten zusätzlich eine Package.swift und lassen sich dadurch direkt als Swift Package in Xcode öffnen."
+                        : "Swift projects also include Package.swift, so they can be opened directly as a Swift Package in Xcode."
+                )
+                .font(.caption)
+                .foregroundStyle(theme.secondaryText)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding()
+            .background(theme.background)
+            .navigationTitle(isGerman ? "Exportieren" : "Export")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(isGerman ? "Fertig" : "Done") { dismiss() }
+                }
+            }
+        }
+        .preferredColorScheme(theme.preferredScheme)
+    }
+
+    private func exportRow(
+        title: String,
+        subtitle: String,
+        systemImage: String
+    ) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.title2)
+                .foregroundStyle(theme.accent)
+                .frame(width: 32)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.headline)
+                    .foregroundStyle(theme.codeText)
+                Text(subtitle)
+                    .font(.caption)
+                    .foregroundStyle(theme.secondaryText)
+            }
+            Spacer()
+            Image(systemName: "square.and.arrow.up")
+                .foregroundStyle(theme.accent)
+        }
+        .padding(14)
+        .background(
+            theme.controlBackground,
+            in: RoundedRectangle(cornerRadius: 12)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(theme.border, lineWidth: 1)
+        )
+    }
+}
+
 private final class CodeEditorUIKitTextView: UITextView {
     var onToggleComment: (() -> Void)?
+    var onDuplicate: (() -> Void)?
+    var onMoveLineUp: (() -> Void)?
+    var onMoveLineDown: (() -> Void)?
+    var onDeleteLine: (() -> Void)?
+    var onSelectLine: (() -> Void)?
+    var onTab: (() -> Void)?
 
     override var keyCommands: [UIKeyCommand]? {
         let toggleComment = UIKeyCommand(
@@ -1425,12 +1546,63 @@ private final class CodeEditorUIKitTextView: UITextView {
             action: #selector(toggleCommentCommand)
         )
         toggleComment.discoverabilityTitle = "Kommentar umschalten"
-        return (super.keyCommands ?? []) + [toggleComment]
+        let duplicate = UIKeyCommand(
+            title: "Zeile oder Auswahl duplizieren",
+            action: #selector(duplicateCommand),
+            input: "d",
+            modifierFlags: .command
+        )
+        let moveUp = UIKeyCommand(
+            title: "Zeile nach oben",
+            action: #selector(moveLineUpCommand),
+            input: UIKeyCommand.inputUpArrow,
+            modifierFlags: .alternate
+        )
+        let moveDown = UIKeyCommand(
+            title: "Zeile nach unten",
+            action: #selector(moveLineDownCommand),
+            input: UIKeyCommand.inputDownArrow,
+            modifierFlags: .alternate
+        )
+        let deleteLine = UIKeyCommand(
+            title: "Zeile löschen",
+            action: #selector(deleteLineCommand),
+            input: "k",
+            modifierFlags: [.command, .shift]
+        )
+        let selectLine = UIKeyCommand(
+            title: "Zeile auswählen",
+            action: #selector(selectLineCommand),
+            input: "l",
+            modifierFlags: [.command, .shift]
+        )
+        let tab = UIKeyCommand(
+            title: "Vorschlag übernehmen oder weiter",
+            action: #selector(tabCommand),
+            input: "\t",
+            modifierFlags: []
+        )
+        return (super.keyCommands ?? []) + [
+            toggleComment,
+            duplicate,
+            moveUp,
+            moveDown,
+            deleteLine,
+            selectLine,
+            tab,
+        ]
     }
 
     @objc private func toggleCommentCommand() {
         onToggleComment?()
     }
+
+    @objc private func duplicateCommand() { onDuplicate?() }
+    @objc private func moveLineUpCommand() { onMoveLineUp?() }
+    @objc private func moveLineDownCommand() { onMoveLineDown?() }
+    @objc private func deleteLineCommand() { onDeleteLine?() }
+    @objc private func selectLineCommand() { onSelectLine?() }
+    @objc private func tabCommand() { onTab?() }
 }
 
 struct CodeEditorTextView: UIViewRepresentable {
@@ -1442,6 +1614,10 @@ struct CodeEditorTextView: UIViewRepresentable {
     let wrapsLongLines: Bool
     @Binding var fontSize: CGFloat
     var issues: [LintIssue] = []
+    let navigationID: Int
+    let findRequestID: Int
+    let onTab: () -> Bool
+    let onAIAction: (EditorAIAction) -> Void
     let onFocusChange: (Bool) -> Void
 
     func makeUIView(context: Context) -> UITextView {
@@ -1450,12 +1626,31 @@ struct CodeEditorTextView: UIViewRepresentable {
         textView.onToggleComment = { [weak coordinator = context.coordinator] in
             coordinator?.toggleCommentFromKeyboard()
         }
+        textView.onDuplicate = { [weak coordinator = context.coordinator] in
+            coordinator?.duplicateFromKeyboard()
+        }
+        textView.onMoveLineUp = { [weak coordinator = context.coordinator] in
+            coordinator?.moveLineUpFromKeyboard()
+        }
+        textView.onMoveLineDown = { [weak coordinator = context.coordinator] in
+            coordinator?.moveLineDownFromKeyboard()
+        }
+        textView.onDeleteLine = { [weak coordinator = context.coordinator] in
+            coordinator?.deleteLineFromKeyboard()
+        }
+        textView.onSelectLine = { [weak coordinator = context.coordinator] in
+            coordinator?.selectLineFromKeyboard()
+        }
+        textView.onTab = { [weak coordinator = context.coordinator] in
+            coordinator?.handleTab()
+        }
         textView.autocorrectionType = .no
         textView.autocapitalizationType = .none
         textView.smartQuotesType = .no
         textView.smartDashesType = .no
         textView.keyboardType = .asciiCapable
         textView.keyboardDismissMode = .interactive
+        textView.isFindInteractionEnabled = true
         textView.alwaysBounceVertical = true
         configureLineWrapping(for: textView)
         textView.textContainerInset = UIEdgeInsets(
@@ -1511,6 +1706,28 @@ struct CodeEditorTextView: UIViewRepresentable {
         {
             textView.selectedRange = requestedSelection
             textView.scrollRangeToVisible(requestedSelection)
+        }
+        if context.coordinator.lastNavigationID != navigationID {
+            textView.selectedRange = requestedSelection
+            textView.scrollRangeToVisible(
+                NSRange(
+                    location: requestedSelection.location,
+                    length: min(
+                        1,
+                        max(
+                            0,
+                            textView.text.utf16.count
+                                - requestedSelection.location
+                        )
+                    )
+                )
+            )
+            context.coordinator.lastNavigationID = navigationID
+        }
+        if context.coordinator.lastFindRequestID != findRequestID {
+            textView.becomeFirstResponder()
+            textView.findInteraction?.presentFindNavigator(showingReplace: true)
+            context.coordinator.lastFindRequestID = findRequestID
         }
     }
 
@@ -1617,6 +1834,8 @@ struct CodeEditorTextView: UIViewRepresentable {
         var lastThemeID: String
         var lastFontSize: CGFloat
         var lastIssues: [LintIssue]
+        var lastNavigationID: Int
+        var lastFindRequestID: Int
         private weak var textView: UITextView?
         private weak var keyboardToolbar: UIToolbar?
 
@@ -1626,6 +1845,8 @@ struct CodeEditorTextView: UIViewRepresentable {
             self.lastThemeID = parent.theme.id
             self.lastFontSize = parent.fontSize
             self.lastIssues = parent.issues
+            self.lastNavigationID = parent.navigationID
+            self.lastFindRequestID = parent.findRequestID
         }
 
         func attachPinchGesture(to textView: UITextView) {
@@ -1684,17 +1905,15 @@ struct CodeEditorTextView: UIViewRepresentable {
                     action: #selector(moveCursorRight)
                 ),
                 barButton(
-                    title: "⇤",
-                    accessibilityLabel: "Ausrücken",
-                    action: #selector(outdentSelection)
+                    systemImage: "arrow.right.to.line",
+                    accessibilityLabel:
+                        "Vorschlag übernehmen oder Platzhalter wechseln",
+                    action: #selector(handleTab)
                 ),
-                barButton(
-                    title: "⇥",
-                    accessibilityLabel: "Einrücken",
-                    action: #selector(indentSelection)
-                ),
+                selectionActionsMenuItem(),
                 lineActionsMenuItem(),
                 symbolMenuItem(),
+                aiActionsMenuItem(),
                 flexibleSpace(),
                 barButton(
                     systemImage: "arrow.uturn.backward",
@@ -1725,6 +1944,49 @@ struct CodeEditorTextView: UIViewRepresentable {
 
         @objc private func moveCursorRight() {
             moveCursor(by: 1)
+        }
+
+        @objc func handleTab() {
+            if parent.onTab() { return }
+            indentSelection()
+        }
+
+        @objc private func cutSelection() {
+            textView?.cut(nil)
+        }
+
+        @objc private func copySelection() {
+            textView?.copy(nil)
+        }
+
+        @objc private func pasteSelection() {
+            textView?.paste(nil)
+        }
+
+        @objc private func selectAllCode() {
+            textView?.selectAll(nil)
+        }
+
+        @objc private func selectCurrentLine() {
+            guard let textView else { return }
+            let source = textView.text as NSString
+            let lineRange = source.lineRange(for: textView.selectedRange)
+            let visibleLength =
+                lineRange.length
+                - (source.substring(with: lineRange).hasSuffix("\n") ? 1 : 0)
+            let selection = NSRange(
+                location: lineRange.location,
+                length: visibleLength
+            )
+            textView.selectedRange = selection
+            parent.cursorLocation = selection.location
+            parent.selectionLength = selection.length
+        }
+
+        @objc private func presentFindAndReplace() {
+            textView?.findInteraction?.presentFindNavigator(
+                showingReplace: true
+            )
         }
 
         @objc private func indentSelection() {
@@ -1808,6 +2070,25 @@ struct CodeEditorTextView: UIViewRepresentable {
                 selection: NSRange(
                     location: selection.location
                         + lineText.utf16.count + separator.utf16.count,
+                    length: selection.length
+                ),
+                in: textView
+            )
+        }
+
+        @objc private func duplicateSelectionOrLines() {
+            guard let textView, textView.selectedRange.length > 0 else {
+                duplicateLines()
+                return
+            }
+            let source = textView.text as NSString
+            let selection = textView.selectedRange
+            let selectedText = source.substring(with: selection)
+            replace(
+                range: NSRange(location: NSMaxRange(selection), length: 0),
+                with: selectedText,
+                selection: NSRange(
+                    location: NSMaxRange(selection),
                     length: selection.length
                 ),
                 in: textView
@@ -1904,6 +2185,26 @@ struct CodeEditorTextView: UIViewRepresentable {
 
         func toggleCommentFromKeyboard() {
             toggleComment()
+        }
+
+        func duplicateFromKeyboard() {
+            duplicateSelectionOrLines()
+        }
+
+        func moveLineUpFromKeyboard() {
+            moveLinesUp()
+        }
+
+        func moveLineDownFromKeyboard() {
+            moveLinesDown()
+        }
+
+        func deleteLineFromKeyboard() {
+            deleteLines()
+        }
+
+        func selectLineFromKeyboard() {
+            selectCurrentLine()
         }
 
         @objc private func toggleComment() {
@@ -2034,17 +2335,65 @@ struct CodeEditorTextView: UIViewRepresentable {
             selection: NSRange,
             in textView: UITextView
         ) {
-            guard let swiftRange = Range(range, in: textView.text) else {
+            let previousText = textView.text ?? ""
+            let previousSelection = textView.selectedRange
+            guard let swiftRange = Range(range, in: previousText) else {
                 return
             }
 
-            var updatedText = textView.text ?? ""
+            var updatedText = previousText
             updatedText.replaceSubrange(swiftRange, with: replacement)
-            textView.text = updatedText
-            textView.selectedRange = selection
-            parent.text = updatedText
-            parent.cursorLocation = selection.location
+            applyEditorSnapshot(
+                text: updatedText,
+                selection: selection,
+                to: textView
+            )
+            textView.undoManager?.registerUndo(withTarget: self) {
+                coordinator in
+                coordinator.restoreEditorSnapshot(
+                    text: previousText,
+                    selection: previousSelection
+                )
+            }
+            textView.undoManager?.setActionName("Code bearbeiten")
+        }
+
+        private func restoreEditorSnapshot(
+            text: String,
+            selection: NSRange
+        ) {
+            guard let textView else { return }
+            let currentText = textView.text ?? ""
+            let currentSelection = textView.selectedRange
+            applyEditorSnapshot(text: text, selection: selection, to: textView)
+            textView.undoManager?.registerUndo(withTarget: self) {
+                coordinator in
+                coordinator.restoreEditorSnapshot(
+                    text: currentText,
+                    selection: currentSelection
+                )
+            }
+        }
+
+        private func applyEditorSnapshot(
+            text: String,
+            selection: NSRange,
+            to textView: UITextView
+        ) {
+            let safeSelection = NSRange(
+                location: min(selection.location, text.utf16.count),
+                length: min(
+                    selection.length,
+                    max(0, text.utf16.count - selection.location)
+                )
+            )
+            textView.text = text
+            textView.selectedRange = safeSelection
+            parent.text = text
+            parent.cursorLocation = safeSelection.location
+            parent.selectionLength = safeSelection.length
             parent.applyHighlight(to: textView)
+            textView.scrollRangeToVisible(safeSelection)
             lastLanguageID = parent.language.id
             lastThemeID = parent.theme.id
         }
@@ -2103,8 +2452,73 @@ struct CodeEditorTextView: UIViewRepresentable {
             }
         }
 
-        private func lineActionsMenuItem() -> UIBarButtonItem {
+        private func selectionActionsMenuItem() -> UIBarButtonItem {
+            let clipboardMenu = UIMenu(
+                title: "Zwischenablage",
+                image: UIImage(systemName: "doc.on.clipboard"),
+                children: [
+                    UIAction(
+                        title: "Ausschneiden",
+                        image: UIImage(systemName: "scissors")
+                    ) { [weak self] _ in self?.cutSelection() },
+                    UIAction(
+                        title: "Kopieren",
+                        image: UIImage(systemName: "doc.on.doc")
+                    ) { [weak self] _ in self?.copySelection() },
+                    UIAction(
+                        title: "Einsetzen",
+                        image: UIImage(systemName: "doc.on.clipboard")
+                    ) { [weak self] _ in self?.pasteSelection() },
+                ]
+            )
             let menu = UIMenu(
+                title: "Auswahl",
+                children: [
+                    UIAction(
+                        title: "Zeile auswählen",
+                        image: UIImage(systemName: "selection.pin.in.out")
+                    ) { [weak self] _ in self?.selectCurrentLine() },
+                    UIAction(
+                        title: "Alles auswählen",
+                        image: UIImage(systemName: "selection.pin.in.out")
+                    ) { [weak self] _ in self?.selectAllCode() },
+                    UIAction(
+                        title: "Duplizieren",
+                        image: UIImage(systemName: "plus.square.on.square")
+                    ) { [weak self] _ in self?.duplicateSelectionOrLines() },
+                    clipboardMenu,
+                    UIAction(
+                        title: "Suchen & Ersetzen",
+                        image: UIImage(systemName: "magnifyingglass")
+                    ) { [weak self] _ in self?.presentFindAndReplace() },
+                ]
+            )
+            let item = UIBarButtonItem(
+                title: "Auswahl",
+                image: UIImage(systemName: "selection.pin.in.out"),
+                primaryAction: nil,
+                menu: menu
+            )
+            item.accessibilityLabel = "Auswahlaktionen"
+            return item
+        }
+
+        private func lineActionsMenu() -> UIMenu {
+            let indentationMenu = UIMenu(
+                title: "Einzug",
+                image: UIImage(systemName: "increase.indent"),
+                children: [
+                    UIAction(
+                        title: "Einrücken",
+                        image: UIImage(systemName: "increase.indent")
+                    ) { [weak self] _ in self?.indentSelection() },
+                    UIAction(
+                        title: "Ausrücken",
+                        image: UIImage(systemName: "decrease.indent")
+                    ) { [weak self] _ in self?.outdentSelection() },
+                ]
+            )
+            return UIMenu(
                 title: "Zeile",
                 children: [
                     UIAction(
@@ -2131,6 +2545,7 @@ struct CodeEditorTextView: UIViewRepresentable {
                     ) { [weak self] _ in
                         self?.toggleComment()
                     },
+                    indentationMenu,
                     UIAction(
                         title: "Löschen",
                         image: UIImage(systemName: "trash"),
@@ -2140,14 +2555,59 @@ struct CodeEditorTextView: UIViewRepresentable {
                     },
                 ]
             )
+        }
+
+        private func lineActionsMenuItem() -> UIBarButtonItem {
             let item = UIBarButtonItem(
+                title: "Zeile",
                 image: UIImage(
                     systemName: "text.line.first.and.arrowtriangle.forward"
                 ),
-                menu: menu
+                primaryAction: nil,
+                menu: lineActionsMenu()
             )
             item.accessibilityLabel = "Zeilenaktionen"
             return item
+        }
+
+        private func aiActionsMenu() -> UIMenu {
+            UIMenu(
+                title: "Khyra AI",
+                image: UIImage(systemName: "apple.intelligence"),
+                children: [
+                    UIAction(
+                        title: "Erklären",
+                        image: UIImage(systemName: "text.magnifyingglass")
+                    ) { [weak self] _ in self?.performAIAction(.explain) },
+                    UIAction(
+                        title: "Verbessern",
+                        image: UIImage(systemName: "wand.and.stars")
+                    ) { [weak self] _ in self?.performAIAction(.improve) },
+                    UIAction(
+                        title: "Reparieren",
+                        image: UIImage(systemName: "wrench.and.screwdriver")
+                    ) { [weak self] _ in self?.performAIAction(.repair) },
+                ]
+            )
+        }
+
+        private func aiActionsMenuItem() -> UIBarButtonItem {
+            let item = UIBarButtonItem(
+                title: "Khyra AI",
+                image: UIImage(systemName: "apple.intelligence"),
+                primaryAction: nil,
+                menu: aiActionsMenu()
+            )
+            item.accessibilityLabel = "Khyra AI"
+            return item
+        }
+
+        private func performAIAction(_ action: EditorAIAction) {
+            guard let textView else { return }
+            if textView.selectedRange.length == 0 {
+                selectCurrentLine()
+            }
+            parent.onAIAction(action)
         }
 
         private func symbolMenuItem() -> UIBarButtonItem {
@@ -2175,9 +2635,11 @@ struct CodeEditorTextView: UIViewRepresentable {
                 }
             }
             let item = UIBarButtonItem(
+                title: "Codezeichen",
                 image: UIImage(
                     systemName: "chevron.left.forwardslash.chevron.right"
                 ),
+                primaryAction: nil,
                 menu: UIMenu(title: "Codezeichen", children: actions)
             )
             item.accessibilityLabel = "Codezeichen"
@@ -2226,6 +2688,30 @@ struct CodeEditorTextView: UIViewRepresentable {
 
         func textViewDidBeginEditing(_ textView: UITextView) {
             parent.onFocusChange(true)
+        }
+
+        func textView(
+            _ textView: UITextView,
+            editMenuForTextIn range: NSRange,
+            suggestedActions: [UIMenuElement]
+        ) -> UIMenu? {
+            let codeMenu = UIMenu(
+                title: "Code",
+                image: UIImage(
+                    systemName: "chevron.left.forwardslash.chevron.right"
+                ),
+                children: [
+                    lineActionsMenu(),
+                    aiActionsMenu(),
+                    UIAction(
+                        title: "Auswahl duplizieren",
+                        image: UIImage(systemName: "plus.square.on.square")
+                    ) { [weak self] _ in
+                        self?.duplicateSelectionOrLines()
+                    },
+                ]
+            )
+            return UIMenu(children: suggestedActions + [codeMenu])
         }
 
         func textViewDidEndEditing(_ textView: UITextView) {

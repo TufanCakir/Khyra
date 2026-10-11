@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct AppStrings: Decodable {
+struct AppStrings: Codable {
     let welcomeTitle: String
     let welcomeSubtitle: String
     let newProject: String
@@ -143,14 +143,29 @@ struct AppStrings: Decodable {
         languageCode: String = Locale.current.language.languageCode?.identifier
             ?? "en"
     ) -> AppStrings {
-        let resource = languageCode == "de" ? "strings_de" : "strings_en"
+        guard let data = try? JSONEncoder().encode(englishFallback),
+            var values = try? JSONSerialization.jsonObject(with: data)
+                as? [String: String]
+        else {
+            return .englishFallback
+        }
+
+        let locale = Locale(identifier: languageCode)
+        for key in values.keys {
+            values[key] = String(
+                localized: String.LocalizationValue(key),
+                locale: locale
+            )
+        }
+
         guard
-            let url = Bundle.main.url(
-                forResource: resource,
-                withExtension: "json"
+            let localizedData = try? JSONSerialization.data(
+                withJSONObject: values
             ),
-            let data = try? Data(contentsOf: url),
-            let strings = try? JSONDecoder().decode(AppStrings.self, from: data)
+            let strings = try? JSONDecoder().decode(
+                AppStrings.self,
+                from: localizedData
+            )
         else {
             return .englishFallback
         }
@@ -288,15 +303,257 @@ struct AppStrings: Decodable {
         keywords: "Keywords",
         whatDoesItDo: "What does it do?",
         buildingBlocks: "Building blocks",
-        
 
         aiHeaderTitle: "What would you like to create?",
-        aiHeaderSubtitle: "Your intelligent coding assistant. Right on your device.",
+        aiHeaderSubtitle:
+            "Your intelligent coding assistant. Right on your device.",
         aiMode: "Mode",
         aiGenerate: "Generate",
         aiGenerating: "Generating code…",
-        aiPlaceholder: "Describe your idea, a feature, or something you'd like to improve…",
+        aiPlaceholder:
+            "Describe your idea, a feature, or something you'd like to improve…",
         aiOnDeviceProcessing: "AI processing happens directly on your device.",
         aiGenerationFailed: "Generation failed. Please try again."
     )
+}
+
+// Literal declarations let Xcode extract the semantic keys and their English source values.
+private enum AppStringCatalog {
+    static let entries: [String] = [
+        String(localized: "lines", defaultValue: "Lines"),
+        String(localized: "language", defaultValue: "Language"),
+        String(localized: "home", defaultValue: "Home"),
+        String(
+            localized: "infoDocs",
+            defaultValue:
+                "Documentation with examples, explanations, copy and share actions."
+        ),
+        String(localized: "info", defaultValue: "Info"),
+        String(localized: "appearance", defaultValue: "Appearance"),
+        String(localized: "refactor", defaultValue: "Refactor"),
+        String(localized: "saveProject", defaultValue: "Save project"),
+        String(
+            localized: "infoProjects",
+            defaultValue:
+                "Project manager for files, folders, rename, delete, save and export."
+        ),
+        String(localized: "newProject", defaultValue: "New Project"),
+        String(localized: "aiGenerate", defaultValue: "Generate"),
+        String(localized: "noSnippets", defaultValue: "No Snippets"),
+        String(
+            localized: "chooseFileName",
+            defaultValue: "Choose a custom name for this file."
+        ),
+        String(localized: "trigger", defaultValue: "Trigger"),
+        String(localized: "boilerplate", defaultValue: "Boilerplate"),
+        String(localized: "files", defaultValue: "Files"),
+        String(localized: "title", defaultValue: "Title"),
+        String(localized: "addReadme", defaultValue: "Add README.md"),
+        String(localized: "none", defaultValue: "None"),
+        String(localized: "delete", defaultValue: "Delete"),
+        String(localized: "codeShare", defaultValue: "Share code"),
+        String(localized: "frameworks", defaultValue: "Frameworks"),
+        String(localized: "infoTitle", defaultValue: "What Khyra can do"),
+        String(localized: "rateApp", defaultValue: "Rate Khyra"),
+        String(localized: "clean", defaultValue: "clean"),
+        String(localized: "saveVersion", defaultValue: "Save Version"),
+        String(localized: "moreActions", defaultValue: "More Actions"),
+        String(
+            localized: "noFilesHint",
+            defaultValue: "Tap + to create your own files."
+        ),
+        String(localized: "preview", defaultValue: "Preview"),
+        String(localized: "version", defaultValue: "Version"),
+        String(localized: "errors", defaultValue: "errors"),
+        String(localized: "terminal", defaultValue: "Terminal"),
+        String(localized: "line", defaultValue: "Line"),
+        String(localized: "playground", defaultValue: "Playground"),
+        String(localized: "german", defaultValue: "German"),
+        String(localized: "format", defaultValue: "Format"),
+        String(localized: "versionName", defaultValue: "Version name"),
+        String(
+            localized: "starterCodeDescription",
+            defaultValue: "Adds a matching basic structure for this language."
+        ),
+        String(localized: "docs", defaultValue: "Docs"),
+        String(
+            localized: "activeLanguage",
+            defaultValue: "Show active language"
+        ),
+        String(localized: "about", defaultValue: "About"),
+        String(localized: "export", defaultValue: "Export"),
+        String(localized: "issues", defaultValue: "Issues"),
+        String(localized: "newFolder", defaultValue: "New Folder"),
+        String(localized: "warning", defaultValue: "warning"),
+        String(localized: "saved", defaultValue: "Saved"),
+        String(
+            localized: "noLintErrors",
+            defaultValue: "No lint errors found."
+        ),
+        String(localized: "cleanCode", defaultValue: "Clean Code"),
+        String(
+            localized: "aiHeaderSubtitle",
+            defaultValue:
+                "Your intelligent coding assistant. Right on your device."
+        ),
+        String(localized: "appInfo", defaultValue: "App Info"),
+        String(localized: "copy", defaultValue: "Copy"),
+        String(
+            localized: "noSnippetsHint",
+            defaultValue:
+                "Add frameworks/snippets in code.json or save your current code."
+        ),
+        String(localized: "warnings", defaultValue: "warnings"),
+        String(localized: "save", defaultValue: "Save"),
+        String(localized: "projects", defaultValue: "Projects"),
+        String(localized: "whatDoesItDo", defaultValue: "What does it do?"),
+        String(localized: "projectSetup", defaultValue: "Project Setup"),
+        String(localized: "settings", defaultValue: "Settings"),
+        String(
+            localized: "infoDescription",
+            defaultValue:
+                "Khyra is a native mobile code workspace for writing, organizing, checking and previewing small projects directly on iPhone."
+        ),
+        String(localized: "editSnippet", defaultValue: "Edit Snippet"),
+        String(localized: "renameProject", defaultValue: "Rename Project"),
+        String(localized: "documentation", defaultValue: "Documentation"),
+        String(localized: "error", defaultValue: "error"),
+        String(
+            localized: "insertBoilerplate",
+            defaultValue: "Insert boilerplate"
+        ),
+        String(
+            localized: "projectNameRequired",
+            defaultValue: "Project name is required."
+        ),
+        String(
+            localized: "openTerminalLarge",
+            defaultValue: "Open terminal large"
+        ),
+        String(
+            localized: "saveProjectFirst",
+            defaultValue: "Save a project first."
+        ),
+        String(localized: "examples", defaultValue: "Examples"),
+        String(localized: "capabilities", defaultValue: "Capabilities"),
+        String(localized: "theme", defaultValue: "Theme"),
+        String(localized: "newFile", defaultValue: "New File"),
+        String(
+            localized: "aiPlaceholder",
+            defaultValue:
+                "Describe your idea, a feature, or something you'd like to improve…"
+        ),
+        String(localized: "issueCount", defaultValue: "Issues"),
+        String(localized: "support", defaultValue: "Support"),
+        String(localized: "use", defaultValue: "Use"),
+        String(
+            localized: "aiGenerationFailed",
+            defaultValue: "Generation failed. Please try again."
+        ),
+        String(localized: "insert", defaultValue: "Insert"),
+        String(localized: "starterCode", defaultValue: "Starter code"),
+        String(
+            localized: "infoEditor",
+            defaultValue:
+                "Editor with syntax highlighting, suggestions, snippets, auto pairs, formatting and lint terminal."
+        ),
+        String(localized: "versions", defaultValue: "Versions"),
+        String(localized: "projectName", defaultValue: "Project Name"),
+        String(localized: "name", defaultValue: "Name"),
+        String(localized: "english", defaultValue: "English"),
+        String(
+            localized: "infoNative",
+            defaultValue:
+                "Built with native Apple frameworks like SwiftUI, UIKit and WebKit."
+        ),
+        String(localized: "shareCode", defaultValue: "Share code"),
+        String(localized: "create", defaultValue: "Create"),
+        String(
+            localized: "infoPreview",
+            defaultValue:
+                "Web preview renders HTML, CSS and JavaScript together with WebKit."
+        ),
+        String(localized: "restore", defaultValue: "Restore"),
+        String(localized: "edit", defaultValue: "Edit"),
+        String(
+            localized: "projectIDExists",
+            defaultValue: "Project ID already exists."
+        ),
+        String(localized: "aiGenerating", defaultValue: "Generating code…"),
+        String(localized: "welcomeTitle", defaultValue: "Welcome to Khyra"),
+        String(localized: "file", defaultValue: "File"),
+        String(
+            localized: "aiHeaderTitle",
+            defaultValue: "What would you like to create?"
+        ),
+        String(localized: "build", defaultValue: "Build"),
+        String(localized: "cancel", defaultValue: "Cancel"),
+        String(localized: "fileName", defaultValue: "File name"),
+        String(localized: "rename", defaultValue: "Rename"),
+        String(localized: "plannedChange", defaultValue: "Planned change"),
+        String(localized: "templates", defaultValue: "Templates"),
+        String(localized: "codeCopy", defaultValue: "Copy code"),
+        String(localized: "useFramework", defaultValue: "Use Framework"),
+        String(
+            localized: "aiOnDeviceProcessing",
+            defaultValue: "AI processing happens directly on your device."
+        ),
+        String(
+            localized: "projectIDRequired",
+            defaultValue: "Project ID is required."
+        ),
+        String(
+            localized: "noLocalVersions",
+            defaultValue: "No local versions saved."
+        ),
+        String(
+            localized: "projectManagerChanges",
+            defaultValue: "Project Manager changes"
+        ),
+        String(localized: "explain", defaultValue: "Explain"),
+        String(
+            localized: "emptyUsesBoilerplate",
+            defaultValue: "empty - uses boilerplate"
+        ),
+        String(
+            localized: "saveVersionMessage",
+            defaultValue: "Name this local code version."
+        ),
+        String(localized: "newSnippet", defaultValue: "New Snippet"),
+        String(localized: "snippets", defaultValue: "Snippets"),
+        String(
+            localized: "infoPlayground",
+            defaultValue:
+                "Playground is for quick code experiments with editor and terminal."
+        ),
+        String(localized: "projectID", defaultValue: "Project ID"),
+        String(
+            localized: "toggleProjectNavigator",
+            defaultValue: "Toggle Project Navigator"
+        ),
+        String(
+            localized: "rateAppSubtitle",
+            defaultValue: "Open App Store review"
+        ),
+        String(localized: "aiMode", defaultValue: "Mode"),
+        String(localized: "writeOnly", defaultValue: "Write only"),
+        String(localized: "noFiles", defaultValue: "No Files"),
+        String(localized: "items", defaultValue: "items"),
+        String(localized: "editor", defaultValue: "Editor"),
+        String(
+            localized: "fixSnippetErrors",
+            defaultValue: "Fix snippet errors before saving."
+        ),
+        String(localized: "buildingBlocks", defaultValue: "Building blocks"),
+        String(localized: "keywords", defaultValue: "Keywords"),
+        String(
+            localized: "welcomeSubtitle",
+            defaultValue:
+                "Create projects, open saved work, or start a quick playground."
+        ),
+        String(localized: "framework", defaultValue: "Framework"),
+        String(localized: "noProjects", defaultValue: "No Projects"),
+        String(localized: "reference", defaultValue: "Reference"),
+        String(localized: "openProject", defaultValue: "Open Project"),
+    ]
 }

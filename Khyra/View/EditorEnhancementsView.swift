@@ -181,8 +181,18 @@ struct EditorAISelectionView: View {
                 task =
                     "Improve readability, safety, and modern API usage. Return only replacement code."
             case .repair:
-                task =
-                    "Repair errors while preserving behavior. Return only replacement code."
+                if let diagnostic = model.selectedDiagnostic {
+                    task =
+                        """
+                        Repair only this diagnostic: \(diagnostic.message)
+                        Make the smallest possible edit. Do not add missing \
+                        closing tags when the diagnostic only requires a \
+                        delimiter such as >. Return only replacement code.
+                        """
+                } else {
+                    task =
+                        "Repair errors while preserving behavior. Make the smallest possible edit. Return only replacement code."
+                }
             }
 
             Task {
@@ -265,9 +275,9 @@ struct InlineDiagnosticsView: View {
 
     var body: some View {
         if !issues.isEmpty {
-            ScrollView(.horizontal) {
-                HStack(spacing: 8) {
-                    ForEach(issues) { issue in
+            ScrollView(.vertical) {
+                VStack(spacing: 6) {
+                    ForEach(issues.prefix(3)) { issue in
                         InlineDiagnosticCard(
                             issue: issue,
                             theme: theme,
@@ -277,11 +287,22 @@ struct InlineDiagnosticsView: View {
                             onAIFix: { onAIFix(issue) }
                         )
                     }
+                    if issues.count > 3 {
+                        Text(
+                            isGerman
+                                ? "\(issues.count - 3) weitere in der Konsole"
+                                : "\(issues.count - 3) more in the console"
+                        )
+                        .font(.caption2)
+                        .foregroundStyle(theme.secondaryText)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    }
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
             }
             .scrollIndicators(.hidden)
+            .frame(maxHeight: 142)
             .background(theme.panelBackground)
         }
     }
@@ -298,11 +319,21 @@ private struct InlineDiagnosticCard: View {
     var body: some View {
         HStack(spacing: 8) {
             Button(action: onSelect) {
-                Label(
-                    "L\(issue.line): \(issue.message)",
-                    systemImage: issue.severity.iconName
-                )
-                .lineLimit(2)
+                HStack(alignment: .top, spacing: 8) {
+                    Image(systemName: issue.severity.iconName)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(
+                            isGerman
+                                ? "Zeile \(issue.line)" : "Line \(issue.line)"
+                        )
+                        .font(.caption2.weight(.semibold))
+                        Text(issue.message)
+                            .lineLimit(2)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
 
@@ -328,6 +359,7 @@ private struct InlineDiagnosticCard: View {
         .foregroundStyle(issue.severity.color(in: theme))
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             theme.controlBackground,
             in: RoundedRectangle(cornerRadius: 10)

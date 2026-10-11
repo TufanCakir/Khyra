@@ -16,7 +16,9 @@ struct SuggestionsBarView: View {
         if !suggestions.isEmpty {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(suggestions) { suggestion in
+                    ForEach(Array(suggestions.enumerated()), id: \.element.id) {
+                        index,
+                        suggestion in
                         Button {
                             onSelect(suggestion)
                         } label: {
@@ -31,6 +33,18 @@ struct SuggestionsBarView: View {
                                             design: .monospaced
                                         )
                                     )
+                                if index == 0 {
+                                    Text("Tab")
+                                        .font(
+                                            .system(size: 9, weight: .semibold)
+                                        )
+                                        .padding(.horizontal, 4)
+                                        .padding(.vertical, 2)
+                                        .background(
+                                            theme.border.opacity(0.5),
+                                            in: Capsule()
+                                        )
+                                }
                             }
                             .padding(.horizontal, 10)
                             .frame(height: 32)

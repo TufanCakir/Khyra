@@ -39,6 +39,9 @@ final class EditorModel {
     var showNavigator = false
     var cursorLocation = 0
     var editorSelectionLength = 0
+    var editorNavigationID = 0
+    private var snippetSession: SnippetSession?
+    var selectedDiagnostic: LintIssue?
     var projectItems: [ProjectItem] = []
     var selectedProjectItemID: UUID?
     var projectName = "Untitled"
@@ -502,11 +505,37 @@ final class EditorModel {
     }
 
     func jumpToIssue(_ issue: LintIssue) {
-        cursorLocation = utf16OffsetForLine(
+        let source = activeCode.wrappedValue as NSString
+        let lineStart = utf16OffsetForLine(
             issue.line,
             in: activeCode.wrappedValue
         )
+        let lineRange = source.lineRange(
+            for: NSRange(location: min(lineStart, source.length), length: 0)
+        )
+        cursorLocation = min(
+            lineRange.location + max(issue.column - 1, 0),
+            NSMaxRange(lineRange)
+        )
         editorSelectionLength = 0
+        editorNavigationID &+= 1
+    }
+
+    func selectLine(for issue: LintIssue) {
+        let source = activeCode.wrappedValue as NSString
+        let lineStart = utf16OffsetForLine(
+            issue.line,
+            in: activeCode.wrappedValue
+        )
+        let lineRange = source.lineRange(
+            for: NSRange(location: min(lineStart, source.length), length: 0)
+        )
+        cursorLocation = lineRange.location
+        editorSelectionLength =
+            lineRange.length
+            - (source.substring(with: lineRange).hasSuffix("\n") ? 1 : 0)
+        selectedDiagnostic = issue
+        editorNavigationID &+= 1
     }
 
     var selectedCode: String {
@@ -559,7 +588,8 @@ final class EditorModel {
     }
 
     func exportURL(for item: ProjectItem) -> URL? {
-        let sanitizedName = item.name.replacingOccurrences(of: "/", with: "-")
+        guard item.kind == .file else { return nil }
+        let sanitizedName = exportFileName(for: item)
         let url = FileManager.default.temporaryDirectory.appendingPathComponent(
             sanitizedName
         )
@@ -575,9 +605,183 @@ final class EditorModel {
         }
     }
 
+    func prepareExportURLs() -> ProjectExportURLs? {
+        guard let projectURL = exportProjectURL() else { return nil }
+        let activeFileURL = activeItem.flatMap(exportURL(for:))
+        return ProjectExportURLs(
+            activeFileURL: activeFileURL,
+            projectURL: projectURL
+        )
+    }
+
+    private func exportProjectURL() -> URL? {
+        let fileManager = FileManager.default
+        let exportContainer = fileManager.temporaryDirectory
+            .appendingPathComponent("Khyra Exports", isDirectory: true)
+            .appendingPathComponent(
+                currentProjectID.uuidString,
+                isDirectory: true
+            )
+        let projectURL = exportContainer.appendingPathComponent(
+            sanitizedExportName(projectName, fallback: "Khyra Project"),
+            isDirectory: true
+        )
+
+        do {
+            if fileManager.fileExists(atPath: exportContainer.path) {
+                try fileManager.removeItem(at: exportContainer)
+            }
+            try fileManager.createDirectory(
+                at: projectURL,
+                withIntermediateDirectories: true
+            )
+
+            let files = flattenedProjectFiles(projectItems)
+            let isSwiftProject =
+                !files.isEmpty
+                && files.allSatisfy { $0.languageID?.lowercased() == "swift" }
+            let sourceRoot: URL
+            if isSwiftProject {
+                let moduleName = swiftModuleName(from: projectName)
+                sourceRoot =
+                    projectURL
+                    .appendingPathComponent("Sources", isDirectory: true)
+                    .appendingPathComponent(moduleName, isDirectory: true)
+                try fileManager.createDirectory(
+                    at: sourceRoot,
+                    withIntermediateDirectories: true
+                )
+                try swiftPackageManifest(moduleName: moduleName).write(
+                    to: projectURL.appendingPathComponent("Package.swift"),
+                    atomically: true,
+                    encoding: .utf8
+                )
+            } else {
+                sourceRoot = projectURL
+            }
+
+            try writeProjectItems(projectItems, to: sourceRoot)
+            return projectURL
+        } catch {
+            return nil
+        }
+    }
+
+    private func writeProjectItems(_ items: [ProjectItem], to directory: URL)
+        throws
+    {
+        let fileManager = FileManager.default
+        for item in items {
+            let name =
+                item.kind == .file
+                ? exportFileName(for: item)
+                : sanitizedExportName(item.name, fallback: "Folder")
+            let destination = directory.appendingPathComponent(
+                name,
+                isDirectory: item.kind == .folder
+            )
+            switch item.kind {
+            case .folder:
+                try fileManager.createDirectory(
+                    at: destination,
+                    withIntermediateDirectories: true
+                )
+                try writeProjectItems(item.children, to: destination)
+            case .file:
+                try exportText(for: item).write(
+                    to: destination,
+                    atomically: true,
+                    encoding: .utf8
+                )
+            }
+        }
+    }
+
+    private func flattenedProjectFiles(_ items: [ProjectItem]) -> [ProjectItem]
+    {
+        items.flatMap { item in
+            item.kind == .file ? [item] : flattenedProjectFiles(item.children)
+        }
+    }
+
+    private func exportFileName(for item: ProjectItem) -> String {
+        let baseName = sanitizedExportName(item.name, fallback: "Untitled")
+        guard URL(fileURLWithPath: baseName).pathExtension.isEmpty,
+            let languageID = item.languageID,
+            let fileExtension = fileExtension(for: languageID)
+        else {
+            return baseName
+        }
+        return "\(baseName).\(fileExtension)"
+    }
+
+    private func fileExtension(for languageID: String) -> String? {
+        switch languageID.lowercased() {
+        case "swift": "swift"
+        case "html": "html"
+        case "css": "css"
+        case "javascript", "js": "js"
+        case "typescript", "ts": "ts"
+        case "python", "py": "py"
+        case "c": "c"
+        case "cpp", "c++": "cpp"
+        case "csharp", "c#": "cs"
+        case "java": "java"
+        case "kotlin": "kt"
+        case "rust": "rs"
+        case "go": "go"
+        case "ruby": "rb"
+        case "php": "php"
+        case "json": "json"
+        case "xml": "xml"
+        case "yaml", "yml": "yml"
+        case "markdown", "md": "md"
+        case "sql": "sql"
+        case "shell", "bash", "sh": "sh"
+        default: nil
+        }
+    }
+
+    private func sanitizedExportName(_ name: String, fallback: String) -> String
+    {
+        let invalidCharacters = CharacterSet(charactersIn: "/:\\?%*|\"<>")
+        let components = name.components(separatedBy: invalidCharacters)
+        let result = components.joined(separator: "-")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return result.isEmpty ? fallback : result
+    }
+
+    private func swiftModuleName(from name: String) -> String {
+        let parts = name.components(separatedBy: .alphanumerics.inverted)
+        let joined = parts.filter { !$0.isEmpty }.joined()
+        let candidate = joined.isEmpty ? "KhyraProject" : joined
+        return candidate.first?.isNumber == true
+            ? "Project\(candidate)" : candidate
+    }
+
+    private func swiftPackageManifest(moduleName: String) -> String {
+        """
+        // swift-tools-version: 6.0
+        import PackageDescription
+
+        let package = Package(
+            name: "\(moduleName)",
+            platforms: [.iOS(.v17), .macOS(.v14)],
+            products: [
+                .library(name: "\(moduleName)", targets: ["\(moduleName)"])
+            ],
+            targets: [
+                .target(name: "\(moduleName)")
+            ]
+        )
+        """
+    }
+
     func suggestions() -> [CodeSuggestion] {
         let prefix = currentPrefix()
         guard !prefix.isEmpty else { return [] }
+
+        let contextualSuggestions = contextualSuggestions(for: prefix)
 
         let snippetSuggestions = selectedLanguage.snippets.map { snippet in
             CodeSuggestion(
@@ -609,7 +813,8 @@ final class EditorModel {
         }
 
         return
-            (snippetSuggestions + userSnippetSuggestions + keywordSuggestions)
+            (contextualSuggestions + snippetSuggestions + userSnippetSuggestions
+            + keywordSuggestions)
             .filter { suggestion in
                 suggestion.title.localizedCaseInsensitiveContains(prefix)
                     || suggestion.insertText.localizedCaseInsensitiveContains(
@@ -622,6 +827,11 @@ final class EditorModel {
 
     func applySuggestion(_ suggestion: CodeSuggestion) {
         let source = activeCode.wrappedValue
+        let parsedSnippet = ParsedSnippet.parse(suggestion.insertText)
+        let insertionStart = max(
+            0,
+            cursorLocation - suggestion.replacementPrefix.utf16.count
+        )
         guard
             let range = prefixRange(
                 in: source,
@@ -629,19 +839,123 @@ final class EditorModel {
                 prefix: suggestion.replacementPrefix
             )
         else {
-            setActiveCode(source + suggestion.insertText)
-            cursorLocation = documents[activeDocumentKey]?.utf16.count ?? 0
+            setActiveCode(source + parsedSnippet.text)
+            beginSnippetSession(
+                parsedSnippet,
+                insertionStart: source.utf16.count
+            )
             return
         }
 
         var updated = source
-        updated.replaceSubrange(range, with: suggestion.insertText)
+        updated.replaceSubrange(range, with: parsedSnippet.text)
         setActiveCode(updated)
+        beginSnippetSession(parsedSnippet, insertionStart: insertionStart)
+    }
 
-        let prefixUTF16Count = suggestion.replacementPrefix.utf16.count
-        cursorLocation =
-            cursorLocation - prefixUTF16Count
-            + suggestion.insertText.utf16.count
+    @discardableResult
+    func advanceSnippetPlaceholder() -> Bool {
+        guard var session = snippetSession,
+            session.index + 1 < session.tabStops.count
+        else {
+            snippetSession = nil
+            return false
+        }
+
+        session.index += 1
+        let lengthDelta =
+            activeCodeText.utf16.count - session.baseDocumentLength
+        let tabStop = session.tabStops[session.index]
+        cursorLocation = max(0, tabStop.location + lengthDelta)
+        editorSelectionLength = tabStop.length
+        editorNavigationID += 1
+        snippetSession = session
+        return true
+    }
+
+    private func beginSnippetSession(
+        _ snippet: ParsedSnippet,
+        insertionStart: Int
+    ) {
+        guard let first = snippet.tabStops.first else {
+            snippetSession = nil
+            cursorLocation = insertionStart + snippet.text.utf16.count
+            editorSelectionLength = 0
+            editorNavigationID += 1
+            return
+        }
+
+        let absoluteStops = snippet.tabStops.map {
+            NSRange(location: insertionStart + $0.location, length: $0.length)
+        }
+        snippetSession = SnippetSession(
+            tabStops: absoluteStops,
+            index: 0,
+            baseDocumentLength: activeCodeText.utf16.count
+        )
+        cursorLocation = insertionStart + first.location
+        editorSelectionLength = first.length
+        editorNavigationID += 1
+    }
+
+    private func contextualSuggestions(for prefix: String) -> [CodeSuggestion] {
+        let templates: [(String, String)]
+        switch selectedLanguage.id.lowercased() {
+        case "html":
+            templates = [
+                (
+                    "div",
+                    "<div class=\"${1:class}\">\n    ${2:content}\n</div>${0}"
+                ),
+                (
+                    "button",
+                    "<button type=\"${1:button}\">${2:Text}</button>${0}"
+                ),
+                ("a", "<a href=\"${1:url}\">${2:Text}</a>${0}"),
+            ]
+        case "css":
+            templates = [
+                (
+                    "flex",
+                    "display: flex;\nalign-items: ${1:center};\njustify-content: ${2:center};${0}"
+                ),
+                (
+                    "grid",
+                    "display: grid;\ngrid-template-columns: repeat(${1:2}, 1fr);\ngap: ${2:1rem};${0}"
+                ),
+            ]
+        case "javascript", "js", "typescript", "ts":
+            templates = [
+                (
+                    "function",
+                    "function ${1:name}(${2:parameters}) {\n    ${3:body}\n}${0}"
+                ),
+                ("const", "const ${1:name} = ${2:value};${0}"),
+            ]
+        case "swift":
+            templates = [
+                (
+                    "func",
+                    "func ${1:name}(${2:parameters}) {\n    ${3:body}\n}${0}"
+                ),
+                ("if", "if ${1:condition} {\n    ${2:body}\n}${0}"),
+                (
+                    "guard",
+                    "guard ${1:condition} else {\n    ${2:return}\n}${0}"
+                ),
+            ]
+        default:
+            templates = []
+        }
+
+        return templates.map {
+            CodeSuggestion(
+                title: $0.0,
+                insertText: $0.1,
+                replacementPrefix: prefix,
+                kind: .snippet
+            )
+        }
     }
 
     func replaceActiveCode(with snippet: UserSnippet) {
@@ -1233,6 +1547,12 @@ struct ProjectItem: Identifiable, Equatable, Codable {
     }
 }
 
+struct ProjectExportURLs: Identifiable {
+    let id = UUID()
+    let activeFileURL: URL?
+    let projectURL: URL
+}
+
 struct CleanCodePlan: Equatable {
     let title: String
     let summary: String
@@ -1505,14 +1825,17 @@ enum ProjectTemplateCategory: String, CaseIterable, Identifiable {
 }
 
 struct CodeSuggestion: Identifiable, Equatable {
-    let id = UUID()
     let title: String
     let insertText: String
     let replacementPrefix: String
     let kind: CodeSuggestionKind
+
+    var id: String {
+        "\(kind.rawValue)|\(title)|\(insertText)|\(replacementPrefix)"
+    }
 }
 
-enum CodeSuggestionKind: Equatable {
+enum CodeSuggestionKind: String, Equatable {
     case snippet
     case userSnippet
     case keyword
@@ -1523,5 +1846,81 @@ enum CodeSuggestionKind: Equatable {
         case .userSnippet: "tray.full"
         case .keyword: "textformat"
         }
+    }
+}
+
+private struct SnippetSession {
+    let tabStops: [NSRange]
+    var index: Int
+    let baseDocumentLength: Int
+}
+
+private struct ParsedSnippet {
+    struct TabStop {
+        let order: Int
+        let location: Int
+        let length: Int
+    }
+
+    let text: String
+    let tabStops: [TabStop]
+
+    static func parse(_ source: String) -> ParsedSnippet {
+        let pattern = #"\$\{(\d+)(?::([^}]*))?\}|<#([^#]+)#>"#
+        guard let expression = try? NSRegularExpression(pattern: pattern) else {
+            return ParsedSnippet(text: source, tabStops: [])
+        }
+
+        let sourceString = source as NSString
+        let matches = expression.matches(
+            in: source,
+            range: NSRange(location: 0, length: sourceString.length)
+        )
+        guard !matches.isEmpty else {
+            return ParsedSnippet(text: source, tabStops: [])
+        }
+
+        let output = NSMutableString()
+        var inputLocation = 0
+        var stops: [TabStop] = []
+
+        for (index, match) in matches.enumerated() {
+            let preceding = NSRange(
+                location: inputLocation,
+                length: match.range.location - inputLocation
+            )
+            output.append(sourceString.substring(with: preceding))
+
+            let isXcodePlaceholder = match.range(at: 3).location != NSNotFound
+            let labelRange = match.range(at: isXcodePlaceholder ? 3 : 2)
+            let label =
+                labelRange.location == NSNotFound
+                ? "" : sourceString.substring(with: labelRange)
+            let orderRange = match.range(at: 1)
+            let order =
+                isXcodePlaceholder
+                ? index + 1
+                : Int(sourceString.substring(with: orderRange)) ?? index + 1
+            let location = output.length
+            output.append(label)
+            stops.append(
+                TabStop(
+                    order: order,
+                    location: location,
+                    length: label.utf16.count
+                )
+            )
+            inputLocation = NSMaxRange(match.range)
+        }
+
+        output.append(
+            sourceString.substring(from: inputLocation)
+        )
+        stops.sort {
+            if $0.order == 0 { return false }
+            if $1.order == 0 { return true }
+            return $0.order < $1.order
+        }
+        return ParsedSnippet(text: output as String, tabStops: stops)
     }
 }

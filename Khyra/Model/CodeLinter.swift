@@ -81,13 +81,35 @@ enum CodeLinter {
         var stack: [(name: String, line: Int)] = []
         let lines = source.components(separatedBy: .newlines)
         let pattern = "<(/?)([A-Za-z][A-Za-z0-9-]*)([^>]*)>"
+        let unterminatedPattern = "<([A-Za-z][A-Za-z0-9-]*)(?:\\s[^<>]*)?$"
         guard let expression = try? NSRegularExpression(pattern: pattern) else {
             return issues
         }
+        let unterminatedExpression = try? NSRegularExpression(
+            pattern: unterminatedPattern
+        )
 
         for (index, line) in lines.enumerated() {
             let nsLine = line as NSString
             let range = NSRange(location: 0, length: nsLine.length)
+            if let match = unterminatedExpression?.firstMatch(
+                in: line,
+                range: range
+            ) {
+                let name = nsLine.substring(with: match.range(at: 1))
+                    .lowercased()
+                issues.append(
+                    LintIssue(
+                        line: index + 1,
+                        column: NSMaxRange(match.range(at: 0)) + 1,
+                        severity: .error,
+                        message: "Missing '>' after <\(name)."
+                    )
+                )
+                if !htmlSelfClosingTags.contains(name) {
+                    stack.append((name, index + 1))
+                }
+            }
             expression.enumerateMatches(in: line, range: range) { match, _, _ in
                 guard let match else { return }
                 let closing = nsLine.substring(with: match.range(at: 1)) == "/"
@@ -181,6 +203,17 @@ enum CodeLinter {
             )
             return lines.joined(separator: "\n")
         }
+        if language.id == "html",
+            issue.message.hasPrefix("Missing '>' after <")
+        {
+            let nsLine = lines[index] as NSString
+            let insertion = min(max(issue.column - 1, 0), nsLine.length)
+            lines[index] = nsLine.replacingCharacters(
+                in: NSRange(location: insertion, length: 0),
+                with: ">"
+            )
+            return lines.joined(separator: "\n")
+        }
         if let token = missingToken(in: issue.message) {
             lines[index].append(token)
             return lines.joined(separator: "\n")
@@ -219,10 +252,11 @@ enum CodeLinter {
 
 struct LintIssue: Identifiable, Equatable {
     let line: Int
+    var column: Int = 1
     let severity: LintSeverity
     let message: String
 
-    var id: String { "\(line)-\(severity)-\(message)" }
+    var id: String { "\(line)-\(column)-\(severity)-\(message)" }
 }
 
 enum LintSeverity: Equatable {
